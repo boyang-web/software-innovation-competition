@@ -11,12 +11,12 @@ const POSITIONS={village:{eye:[13,13,17],target:[0,.8,.2]},board:{eye:[2.7,3.2,7
 const ease=(v,target,k)=>v.lerp(target,k);
 export class Workshop {
  constructor(host,{onStation=()=>{},onTool=()=>{},onMark=()=>{},onReady=()=>{},onHint=()=>{}}={}) {
-  this.targets=[];this.onHint=onHint;this.host=host;this.onStation=onStation;this.onTool=onTool;this.onMark=onMark;this.station='village';this.interact='rotate';this.state=null;this.disposed=false;this.textures=[];this.meshes=[];this.frame=0;this.t=0;this.lastTime=0;this.fps=0;this.animatingCamera=false;this.animateUntil=0;
+  this.targets=[];this.onHint=onHint;this.mobile=matchMedia('(pointer: coarse)').matches;this.dirtyUntil=performance.now()+2500;this.viewRevision=0;this.host=host;this.onStation=onStation;this.onTool=onTool;this.onMark=onMark;this.station='village';this.interact='rotate';this.state=null;this.disposed=false;this.textures=[];this.meshes=[];this.frame=0;this.t=0;this.lastTime=0;this.fps=0;this.animatingCamera=false;this.animateUntil=0;
   try{this.renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'low-power'});}catch{host.innerHTML='<div class="scene-fallback"><b>三维预览不可用</b><p>仍可通过右上角「⋯ → 备用工具」完成学习，交织图会同步记录操作。</p></div>';this.failed=true;onReady(false);return;}
-  const r=this.renderer;r.setPixelRatio(Math.min(devicePixelRatio,1.65));r.outputColorSpace=T.SRGBColorSpace;r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1.15;r.shadowMap.enabled=true;r.shadowMap.type=T.PCFSoftShadowMap;host.append(r.domElement);r.domElement.setAttribute('aria-label','可操作的三维织造工坊');
+  const r=this.renderer;r.setPixelRatio(Math.min(devicePixelRatio,this.mobile?1:1.65));r.outputColorSpace=T.SRGBColorSpace;r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1.15;r.shadowMap.enabled=!this.mobile;r.shadowMap.type=T.PCFSoftShadowMap;host.append(r.domElement);r.domElement.setAttribute('aria-label','可操作的三维织造工坊');
   this.scene=new T.Scene();this.scene.background=new T.Color('#c4cebe');this.scene.fog=new T.Fog('#c4cebe',15,30);
   this.camera=new T.PerspectiveCamera(39,1,.05,40);this.controls=new OrbitControls(this.camera,r.domElement);this.controls.enableDamping=true;this.controls.dampingFactor=.09;this.controls.enablePan=false;this.controls.minDistance=2.6;this.controls.maxDistance=45;this.controls.maxPolarAngle=Math.PI*.48;
-  this.controls.addEventListener('start',()=>this.animatingCamera=false);
+  this.controls.addEventListener('start',()=>{this.animatingCamera=false;this.dirtyUntil=performance.now()+1500;});this.controls.addEventListener('change',()=>this.dirtyUntil=performance.now()+500);
   this.scene.add(new T.HemisphereLight('#fff6df','#647464',2));
   const sun=new T.DirectionalLight('#ffe6b4',3.1);sun.position.set(-3,8,5);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-7;sun.shadow.camera.right=7;sun.shadow.camera.top=7;sun.shadow.camera.bottom=-7;sun.shadow.normalBias=.03;this.scene.add(sun);
   this.wood=new T.MeshStandardMaterial({color:'#956a41',roughness:.83});this.darkwood=new T.MeshStandardMaterial({color:'#4a392b',roughness:.9});this.plaster=new T.MeshStandardMaterial({color:'#e4dac3',roughness:1});this.paper=new T.MeshStandardMaterial({color:'#f4ead4',roughness:1});this.metal=new T.MeshStandardMaterial({color:'#83765e',metalness:.55,roughness:.45});this.yarnMaterials={};
@@ -101,7 +101,7 @@ export class Workshop {
   this.label('纺  ·  染  ·  织  ·  绣',-3,2.05,-1.36,1.15);
   this.label('资 料 台',-3,.32,-.15,1.05);
  }
- setStation(station,instant=false){if(this.failed)return;this.station=station;this.interact='direct';this.controls.enabled=true;this.cancelGesture();const p=POSITIONS[station]||POSITIONS.village;this.goalEye=new T.Vector3(...p.eye);this.goalTarget=new T.Vector3(...p.target);this.fitView(this.goalEye,this.goalTarget,station);if(instant){this.camera.position.copy(this.goalEye);this.controls.target.copy(this.goalTarget);this.controls.update();}else this.animatingCamera=true;}
+ setStation(station,instant=false){if(this.failed)return;this.dirtyUntil=performance.now()+2000;this.station=station;this.interact='direct';this.controls.enabled=true;this.cancelGesture();const p=POSITIONS[station]||POSITIONS.village;this.goalEye=new T.Vector3(...p.eye);this.goalTarget=new T.Vector3(...p.target);this.fitView(this.goalEye,this.goalTarget,station);if(instant){this.camera.position.copy(this.goalEye);this.controls.target.copy(this.goalTarget);this.controls.update();}else this.animatingCamera=true;}
  fitView(eye,target,station){
   if(!this.targets?.length)return;
   this.scene.updateMatrixWorld(true);
@@ -116,10 +116,10 @@ export class Workshop {
    eye.copy(target).add(camera.position.clone().sub(target).multiplyScalar(Math.min(2,factor)*1.025));
   }
  }
- topView(){const p=POSITIONS.top;this.goalEye=new T.Vector3(...p.eye);this.goalTarget=new T.Vector3(...p.target);this.animatingCamera=true;}
- setTool(tool){this.interact=tool;if(!this.drag&&!this.painting)this.controls.enabled=true;}
+ topView(){this.dirtyUntil=performance.now()+2000;const p=POSITIONS.top;this.goalEye=new T.Vector3(...p.eye);this.goalTarget=new T.Vector3(...p.target);this.animatingCamera=true;}
+ setTool(tool){this.dirtyUntil=performance.now()+600;this.interact=tool;if(!this.drag&&!this.painting)this.controls.enabled=true;}
  update(state){
-  this.state=state;if(this.failed)return;this.updateTargets();
+  this.state=state;if(this.failed)return;this.dirtyUntil=performance.now()+1500;this.updateTargets();
   const run=state.run;
   if(run){
    const m=missionOf(run.missionId);
@@ -310,12 +310,12 @@ export class Workshop {
   return null;
  }
  resize(){if(this.failed)return;const {clientWidth:w,clientHeight:h}=this.host;this.renderer.setSize(w,h);this.camera.aspect=w/Math.max(1,h);this.camera.updateProjectionMatrix();if(!this.drag){this.fitView(this.camera.position,this.controls.target,this.station);this.controls.update();}}
- tick(time){if(this.disposed||document.hidden){this.frame=0;return;}this.frame=requestAnimationFrame(t=>this.tick(t));if(this.lastTime&&time-this.lastTime<32)return;this.lastTime=time;
+ tick(time){if(this.disposed||document.hidden){this.frame=0;return;}this.frame=requestAnimationFrame(t=>this.tick(t));if(this.lastTime&&time-this.lastTime<(this.mobile?65:32))return;this.lastTime=time;this.controls.update();if(!this.drag&&!this.animatingCamera&&time>this.dirtyUntil)return;
   if(this.animatingCamera){ease(this.camera.position,this.goalEye,.12);ease(this.controls.target,this.goalTarget,.12);if(this.camera.position.distanceTo(this.goalEye)<.015)this.animatingCamera=false;}
   if(this.shuttleTarget!==undefined&&this.drag?.target.id!=='shuttle')this.shuttle.position.x+=(this.shuttleTarget-this.shuttle.position.x)*.18;
   const dt=time-(this.beatStart||-1000);if(this.drag?.target.id!=='beater')this.beater.position.z=.72-(dt<600?Math.sin(dt/600*Math.PI)*.45:0);
   for(const t of this.targets)if(t.marker.visible){const k=1+Math.sin(time/450)*.12;t.marker.scale.setScalar(k);}
-  this.controls.update();this.renderer.render(this.scene,this.camera);
+  this.controls.update();this.renderer.render(this.scene,this.camera);this.viewRevision++;
  }
  dispose(){this.disposed=true;if(this.failed)return;cancelAnimationFrame(this.frame);this.observer.disconnect();this.controls.dispose();document.removeEventListener('visibilitychange',this.visibility);for(const [event,key] of [['pointerdown','down'],['pointermove','move'],['pointerup','up'],['pointercancel','lost']])this.renderer.domElement.removeEventListener(event,this.handlers[key],true);this.renderer.domElement.removeEventListener('webglcontextlost',this.contextLost);this.renderer.domElement.removeEventListener('webglcontextrestored',this.contextRestored);const resources=new Set();this.scene.traverse(o=>{if(o.geometry)resources.add(o.geometry);for(const m of Array.isArray(o.material)?o.material:[o.material])if(m){resources.add(m);for(const t of Object.values(m))if(t?.isTexture)resources.add(t);}});resources.add(this.doll.woodTexture);resources.add(this.doll.woodBumpTexture);for(const resource of resources)resource.dispose();this.fabricTexture?.dispose();for(const t of this.textures)t.dispose();this.renderer.dispose();this.renderer.domElement.remove();}
 }

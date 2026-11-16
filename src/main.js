@@ -204,12 +204,16 @@ scene.setStation(['loom','doll','archive'].includes(state.page)?state.page:'vill
 
 // Read-only scene projection for accessibility tooling and real pointer tests.
 window.__zhiyouSceneTargets=()=>scene.targetPoints();
-let labelFrame=0,labelTime=0;
+let labelFrame=0,labelTime=0,lastViewRevision=-1,labelSignature='';
 function positionLabels(time=0){
  if(time-labelTime<60){labelFrame=requestAnimationFrame(positionLabels);return;}labelTime=time;
+ if(scene.viewRevision===lastViewRevision){labelFrame=requestAnimationFrame(positionLabels);return;}lastViewRevision=scene.viewRevision;
  const root=document.querySelector('#object-labels'),rect=document.querySelector('.stage-shell').getBoundingClientRect();
  const points=scene.targetPoints().filter(p=>p.visible&&(p.primary||state.page==='village'||state.page==='archive'));
- root.innerHTML=points.map(p=>`<span class="object-label ${p.primary?'primary-label':''}" style="left:${p.x-rect.left}px;top:${p.y-rect.top-22}px">${esc(p.label)}</span>`).join('');
+ const signature=points.map(p=>p.id+':'+p.primary).join(',');
+ if(signature!==labelSignature){root.innerHTML=points.map(p=>`<span class="object-label ${p.primary?'primary-label':''}" data-object-label="${p.id}">${esc(p.label)}</span>`).join('');labelSignature=signature;}
+ for(const p of points){const element=root.querySelector(`[data-object-label="${p.id}"]`);if(element){element.style.left=Math.round(p.x-rect.left)+'px';element.style.top=Math.round(p.y-rect.top-22)+'px';}}
+
  labelFrame=requestAnimationFrame(positionLabels);
 }
 positionLabels();

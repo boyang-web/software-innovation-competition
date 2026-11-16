@@ -71,7 +71,17 @@ jobs:
           emulator-boot-timeout: 300
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: gradle -p android connectedDebugAndroidTest --no-daemon
+          script: |
+            adb logcat -c
+            if gradle -p android connectedDebugAndroidTest --no-daemon; then
+              echo 'Installed WebView test passed'
+            else
+              adb logcat -d > test-results/android-logcat.txt
+              adb shell dumpsys activity lastanr > test-results/android-last-anr.txt
+              tail -n 160 test-results/android-logcat.txt
+              cat test-results/android-last-anr.txt
+              exit 1
+            fi
       - name: Prepare download
         run: |
           VERSION=$(node -p "require('./package.json').version")
@@ -87,6 +97,7 @@ jobs:
             SHA256SUMS.txt
             test-results/
             android/app/build/reports/
+            android/app/build/outputs/androidTest-results/
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}

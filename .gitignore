@@ -6,3 +6,7 @@ android/local.properties
 *.jks
 .DS_Store
 test-results/
+
+.env
+.env.*
+!.env.example

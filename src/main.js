@@ -1,42 +1,149 @@
 import './style.css';
-import {initialState,restore,assess,feedback,targetGrid} from './learning.js';
-import {mountDoll} from './doll-view.js';
-const app=document.querySelector('#app');let state=restore(localStorage.getItem('zhiyou-v1')),page='home',dispose=()=>{},message='',storageError=false;
-const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const persist=()=>{try{localStorage.setItem('zhiyou-v1',JSON.stringify(state));}catch{storageError=true;}};
-const button=(text,action,cls='primary')=>`<button class="${cls}" data-action="${action}">${text}</button>`;
-const names=['看懂经纬','织出平纹','木偶工坊','我的作品'];
-function weaveArt(){return '<div class="weave-art" aria-hidden="true">'+Array.from({length:36},(_,i)=>`<i class="${(i+Math.floor(i/6))%2?'cream':''}"></i>`).join('')+'</div>';}
-function render(){dispose();dispose=()=>{};app.innerHTML=`<header><a href="#" data-action="home" class="brand">✳ <b>织游</b><span>掌心里的工艺课</span></a><span class="edition">DEMO 01</span></header><main>${content()}</main><nav aria-label="主导航">${[['home','⌂','学习之旅'],['workshop','▦','制作工坊'],['gallery','♧','作品手记']].map(([p,i,n])=>`<button data-action="${p}" class="${page===p?'active':''}"><span>${i}</span>${n}</button>`).join('')}</nav>${storageError?'<p role="alert" class="storage-error">设备存储不可用，请勿关闭当前页面，进度暂时无法保存。</p>':''}`;
- if(page==='workshop'&&state.stage>=2)dispose=mountDoll(document.querySelector('#doll'),state.color,state.shape);
- window.scrollTo(0,0);
+import {MISSIONS,KNOWLEDGE,YARNS,REVIEW,missionOf,sourceOf,expectedShed} from './content/course.js';
+import {createRun,operate,inspect,coach,yarnOf} from './domain/loom.js';
+import {loadState,saveState,newState} from './domain/store.js';
+import {drawFabric,drawDraft} from './scene/fabric.js';
+import {Workshop} from './scene/workshop.js';
+import {askMentor} from './services/mentor.js';
+
+let state=loadState();
+let noticeTimer,noticeShown='';
+let notice='',activeTool='rotate',markColor='#e4b25d',mentorOpen=false,mentorReply='',mentorBusy=false,selectedRow=-1,storageOK=true,scene;
+const app=document.querySelector('#app');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const btn=(text,action,kind='primary',disabled=false)=>`<button class="${kind}" data-action="${action}" ${disabled?'disabled':''}>${text}</button>`;
+const chip=(text,active=false)=>`<span class="chip ${active?'good':''}">${text}</span>`;
+const sourceLink=id=>{const s=sourceOf(id);return s?`<a class="source-link" href="${s.url}">${s.title} ↗</a>`:'';};
+const canEnter=m=>m.level===0||!!state.completed[MISSIONS[m.level-1].id];
+const persist=()=>{storageOK=saveState(state);};
+const allReview=()=>REVIEW.every(q=>state.review[q.id]===q.answer);
+const currentMission=()=>missionOf(state.run?.missionId||state.missionId);
+
+app.innerHTML=`<div class="app-shell"><header class="topbar"><button class="brand" data-action="village">✳ <b>织游</b><span>山海工坊</span></button><button class="profile-button" data-action="journal" aria-label="学习档案">${Object.keys(state.completed).length}<small>研习章</small></button></header><div class="stage-shell"><div id="scene"></div><div id="scene-hud"></div><div class="camera-tools"><button data-action="camera-reset" aria-label="复位视角">⌖</button><button data-action="camera-top" aria-label="俯视织机">▦</button></div><span class="scene-caption">实时三维 · 单指环绕 / 双指缩放</span></div><div id="panel" class="panel"></div><nav aria-label="主导航">${[['village','⌂','工坊地图'],['loom','▤','织造台'],['doll','♙','木偶台'],['archive','▥','研学手册'],['journal','◷','我的档案']].map(([p,i,n])=>`<button data-action="${p}" data-nav="${p}"><span>${i}</span>${n}</button>`).join('')}</nav><div id="toast" role="status" aria-live="polite"></div></div><dialog id="inspector"><div id="inspector-content"></div></dialog>`;
+scene=new Workshop(document.querySelector('#scene'),{onStation:p=>navigate(p),onTool:handleSceneTool,onMark:addMark});
+
+function navigate(page){
+ if(page==='loom'&&!state.run){state.missionId='first';page='brief';}
+ if(page==='doll'&&!state.run?.submitted){notice='先在织造台完成并验收一块样布，再来进行木偶创作。';page=state.run?'loom':'brief';}
+ state.page=page;activeTool='rotate';scene.setTool('rotate');scene.setStation(['loom','doll','archive'].includes(page)?page:'village');persist();render(true);
 }
-function content(){
- if(page==='home')return `<div class="eyebrow">A LITTLE PRACTICE, A LIVING TRADITION</div><h1>一经一纬，<br>织进你的世界。</h1><p class="intro">从看懂一根线开始。亲手试一试，让工艺知识在指尖发生。</p><section class="hero">${weaveArt()}<div class="hero-bottom"><span>入门篇 / 第 01 课</span><h2>从一块布，到一个小世界</h2><p>认识经纬 · 交织练习 · 木偶创作</p>${button(state.stage?'继续我的学习 →':'开始第一课 →','continue')}</div></section><div class="section-title"><h2>你的工艺旅程</h2><span>约 8 分钟</span></div><div class="journey">${names.map((n,i)=>`<button data-action="step-${i}" ${i>state.stage?'disabled':''}><span class="step">${i<state.stage?'✓':String(i+1).padStart(2,'0')}</span><div><b>${n}</b><small>${['观察交织规律','亲手修好 16 个交点','让样布成为木偶的新衣','收藏作品与学习足迹'][i]}</small></div><span>${i>state.stage?'待解锁':'↗'}</span></button>`).join('')}</div><aside>本期是传统织造的基础结构练习，作品为自由创作；尚未对应某一项具体非遗技艺的复原课程。</aside>`;
- if(page==='lesson')return `<div class="eyebrow">01 / OBSERVE</div><h1>布，是怎样<br>交织出来的？</h1><p class="intro">先分清方向，再观察谁在上面。</p><section class="paper">${weaveArt()}<div class="legend"><span>● 蓝色：纵向经线</span><span>● 米色：横向纬线</span></div><h2>一上一下，就是平纹</h2><p>经线和纬线相互垂直。在平纹中，每根经线与纬线交替上下交织；相邻的一根线，交织顺序也相反。</p><p>下一步，你会直接改变交点的上下关系，而不只是给布填色。</p></section><section class="paper"><h2>想一想</h2><p>如果一个交点是经线在上，它右侧相邻交点应该是哪根线在上？</p><div class="answers">${button('经线在上','answer-warp','choice')}${button('纬线在上','answer-weft','choice')}</div><p role="status" class="feedback">${esc(message)}</p>${state.quiz?button('理解了，去织一块布 →','start-challenge'):''}</section><aside>知识参考：Encyclopaedia Britannica，“plain weave”。<a href="https://www.britannica.com/technology/plain-weave" target="_blank" rel="noopener">查看来源 ↗</a></aside>`;
- if(page==='challenge')return `<div class="eyebrow">02 / PRACTICE</div><h1>让每根线，<br>交替浮沉。</h1><p class="intro">点击交点切换谁在上面。目标：左上角经线在上，完成一块 4 × 4 的平纹。</p><section class="paper"><div class="section-title"><b>你的交织图</b><span>纵经 / 横纬</span></div><div class="grid" aria-label="四乘四交织练习">${state.grid.map((v,i)=>`<button data-action="cell-${i}" class="cross ${v?'warp':'weft'}" aria-label="第${Math.floor(i/4)+1}行第${i%4+1}列，${v?'经':'纬'}线在上" aria-pressed="${v}"><i></i><em></em></button>`).join('')}</div><div class="legend"><span>● 蓝色：经线在上</span><span>● 米色：纬线在上</span></div><div class="actions">${button('检查我的织纹','check')}${button('给我一点提示','hint','secondary')}</div><div class="mentor"><small>✳ 学习导师 · 离线规则反馈</small><p role="status">${esc(message||'从左上角开始，观察每一行和每一列是否都在交替。需要帮助时，再来问我。')}</p></div>${state.stage>=2&&assess(state.grid).passed?button('带上样布，去木偶工坊 →','workshop'):''}</section>`;
- if(page==='workshop'){
- if(state.stage<2)return `<h1>先织一块<br>自己的布。</h1><p class="intro">完成平纹练习，就可以把亲手织出的布带到三维木偶工坊。</p>${button('继续学习 →','continue')}`;
- return `<div class="eyebrow">03 / CREATE</div><h1>给知识，<br>一个新的模样。</h1><p class="intro">你的平纹样布已应用到木偶身上。单指旋转，双指缩放。</p><section class="doll-stage"><div id="doll" aria-label="可旋转的三维木偶预览"></div><span>原创练习 / 平纹小木偶</span></section><section class="paper"><h2>我的配色</h2><div class="swatches">${['#305f72','#a45440','#687653','#745770'].map(c=>`<button data-action="color-${c.slice(1)}" style="--swatch:${c}" aria-label="${({'#305f72':'靛蓝','#a45440':'陶土','#687653':'苔绿','#745770':'暮紫'})[c]}" aria-pressed="${state.color===c}" class="swatch ${state.color===c?'selected':''}"></button>`).join('')}</div><h2>木偶器形</h2><div class="answers">${button('圆锥木偶','shape-cone',state.shape==='cone'?'choice selected':'choice')}${button('圆润木偶','shape-capsule',state.shape==='capsule'?'choice selected':'choice')}</div><label for="work-name">为作品起个名字</label><input id="work-name" maxlength="30" placeholder="例如：我的第一缕靛蓝" value="${esc(state.draftName)}">${button('收藏作品，完成这一课 ✓','save-work')}</section>`;}
- return `<div class="eyebrow">04 / COLLECTION</div><h1>每一次动手，<br>都有迹可循。</h1><p class="intro">${state.works.length?'你已把交织规律变成了自己的作品。':'这里会留下你的第一件作品。'}</p><div class="stats"><div><b>${state.works.length}</b><span>收藏作品</span></div><div><b>${state.checks}</b><span>检查练习</span></div><div><b>${state.hints}</b><span>请求提示</span></div></div>${state.works.map(w=>`<article class="work"><div class="mini-cloth" style="--ink:${w.color}">✳</div><div><h2>${esc(w.name)}</h2><p>${esc(w.date)} · 平纹 / ${w.shape==='cone'?'圆锥':'圆润'}木偶</p><small>识别经纬 → 独立交织 → 应用创作</small></div></article>`).join('')}${button(state.works.length?'再做一件作品 →':'去完成第一课 →',state.stage>=2?'workshop':'continue')}<aside>进度和作品保存在本机。当前没有账号和云同步；卸载应用会清除记录。此 Demo 尚未接入大模型，学习反馈由可解释的交织规则生成。</aside>${button('重置本机学习记录','reset','text-button')}`;
-}
-app.addEventListener('input',e=>{if(e.target.id==='work-name'){state.draftName=e.target.value;persist();}});
-app.addEventListener('click',e=>{const el=e.target.closest('[data-action]');if(!el)return;e.preventDefault();const a=el.dataset.action;
- if(a==='continue'){page=state.stage===0?'lesson':state.stage===1?'challenge':state.stage===2?'workshop':'gallery';message='';}
- else if(['home','workshop','gallery'].includes(a)){page=a;message='';}
- else if(a.startsWith('step-')){page=['lesson','challenge','workshop','gallery'][Number(a.slice(5))];message='';}
- else if(a==='answer-weft'){state.quiz=true;message='对了！相邻交点的上下关系相反，这样纱线才能交替交织。';}
- else if(a==='answer-warp'){message='再观察一下：平纹需要一上一下，相邻交点应当反过来。';}
- else if(a==='start-challenge'){if(!state.quiz)return;state.stage=Math.max(1,state.stage);page='challenge';message='';}
- else if(a.startsWith('cell-')){const i=Number(a.slice(5));state.grid[i]=!state.grid[i];message='';persist();el.classList.toggle('warp',state.grid[i]);el.classList.toggle('weft',!state.grid[i]);el.setAttribute('aria-pressed',state.grid[i]);el.setAttribute('aria-label',`第${Math.floor(i/4)+1}行第${i%4+1}列，${state.grid[i]?'经':'纬'}线在上`);document.querySelector('.feedback')?.remove();document.querySelector('[role=status]').textContent='继续观察相邻交点，再检查织纹。';document.querySelector('[data-action="workshop"]:is(.primary)')?.remove();return;}
- else if(a==='check'){state.checks++;message=feedback(state.grid);if(assess(state.grid).passed)state.stage=Math.max(2,state.stage);}
- else if(a==='hint'){state.hints++;message=feedback(state.grid);}
- else if(a.startsWith('color-'))state.color='#'+a.slice(6);
- else if(a.startsWith('shape-'))state.shape=a.slice(6);
- else if(a==='save-work'){if(state.stage<2||!assess(state.grid).passed){page='challenge';message='先完成交织挑战，再收藏作品。';}else{state.works.unshift({name:state.draftName.trim()||'我的第一缕靛蓝',date:new Date().toLocaleDateString('zh-CN'),color:state.color,shape:state.shape});state.works=state.works.slice(0,20);state.stage=3;state.draftName='';page='gallery';}}
- else if(a==='reset'){if(!confirm('确定清除本机的学习进度和收藏作品？'))return;state=initialState();page='home';}
+function act(action){
+ if(!state.run)return;
+ const result=operate(state.run,action);state.run=result.run;notice=result.notice;mentorReply='';
+ if(action.type==='SUBMIT'&&!result.error){state.page='review';state.review={};mentorOpen=false;scene.setStation('village');}
  persist();render();
+ if(action.type==='BEAT'&&!result.error&&navigator.vibrate)navigator.vibrate(12);
+}
+function render(resetScroll=false){
+ const panel=document.querySelector('#panel'),scroll=resetScroll?0:panel.scrollTop;
+ panel.innerHTML=pageContent();panel.scrollTop=scroll;
+ document.querySelector('#scene-hud').innerHTML=hud();
+ for(const b of document.querySelectorAll('[data-nav]'))b.classList.toggle('active',b.dataset.nav===state.page);
+ document.querySelector('#toast').textContent=notice;document.querySelector('#toast').classList.toggle('visible',!!notice);
+ if(notice&&notice!==noticeShown){noticeShown=notice;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>{notice='';noticeShown='';document.querySelector('#toast').classList.remove('visible');},6500);}
+ if(!storageOK)document.querySelector('#toast').textContent='本机存储已满，请导出作品备份；当前进度暂未保存。';
+ scene.update(state);scene.setTool(activeTool);document.querySelector('.scene-caption').textContent=activeTool==='work'?'工具操作 · 横划投梭 / 下划打纬':activeTool!=='rotate'?'直接点触木偶绘制 / 切回环绕可旋转':'实时三维 · 单指环绕 / 双指缩放';
+ if(state.page==='loom'&&state.run){const canvas=document.querySelector('#inline-draft');if(canvas)drawDraft(canvas,state.run);}
+ document.querySelector('.stage-shell').classList.toggle('compact',['journal','settings','review'].includes(state.page));
+}
+function hud(){
+ const run=state.run,m=currentMission();
+ if(state.page==='loom'&&run){const report=inspect(run);return `<div class="hud-top"><span class="location">织造台 / ${m.type==='plain'?'两组综':'四组综'}</span>${chip(`${run.rows.length} / ${m.rows} 纬`,run.submitted)}</div><div class="mission-overlay"><small>委托 ${m.number} · ${m.id==='transfer'?'独立迁移':'工艺实训'}</small><b>${m.title}</b><div class="progress"><i style="width:${report.progress}%"></i></div></div>`;}
+ if(state.page==='doll')return `<div class="hud-top"><span class="location">木偶创作台</span>${chip('样布已带入',true)}</div><div class="mission-overlay"><small>你的实际织物 → 木偶表面</small><b>${activeTool==='rotate'?'环绕观察，安排构图':'直接在三维木偶上落笔'}</b></div>`;
+ return `<div class="hud-top"><span class="location">海南文化研学 · 数字教学工坊</span>${chip('CHAPTER 01')}</div><div class="room-signs">${btn('资料台','archive','room-sign')}${btn('织造台','loom','room-sign')}${btn('木偶台','doll','room-sign')}</div>`;
+}
+function pageContent(){
+ switch(state.page){
+ case 'village':return village();case 'brief':return brief();case 'loom':return loom();case 'doll':return doll();case 'archive':return archive();case 'review':return review();case 'journal':return journal();case 'settings':return settings();default:state.page='village';return village();
+ }
+}
+function village(){return `<div class="eyebrow">LEARN THROUGH MAKING / 实景工艺课堂</div><div class="heading-row"><h1>走进工坊，<br>亲手织出答案。</h1><span class="round-seal">纺<br>染织绣</span></div><p class="intro">在织机上观察因果，在失误中理解结构，再把你织出的布变成自己的作品。</p>${state.run?`<div class="resume"><div><small>上次做到这里</small><b>${missionOf(state.run.missionId).title} · ${state.run.rows.length} 纬</b></div>${btn('继续 →',state.run.submitted?'doll':'loom','small-primary')}</div>`:''}<div class="section-title"><h2>四段研习 · 一条连续的旅程</h2><span>约 35 分钟</span></div><div class="mission-list">${MISSIONS.map(m=>`<button class="mission-card ${state.completed[m.id]?'passed':''}" data-action="brief-${m.id}" ${canEnter(m)?'':'disabled'}><span class="mission-number">${state.completed[m.id]?'✓':m.number}</span><div><small>${m.subtitle}</small><h3>${m.title}</h3><p>${m.skills.join(' · ')}</p></div><span>${canEnter(m)?'↗':'待解锁'}</span></button>`).join('')}</div><div class="paper-note"><b>从文化语境出发</b><p>以黎族纺染织绣资料为入口，练习通用织造原理。工坊、木偶和几何装饰属于教学设计与自由创作。</p>${btn('先认识这门手艺 →','archive','text-button')}</div>`;}
+function brief(){const m=missionOf(state.missionId);return `<div class="eyebrow">COMMISSION ${m.number} / 工坊委托书</div><h1>${m.title}</h1><p class="intro">${m.description}</p><section class="brief-card"><span class="eyebrow">交付目标</span><h2>${m.deliverable}</h2><div class="chips">${m.skills.map(s=>chip(s)).join('')}</div><ol class="workflow"><li>研读来源，了解文化与工具</li><li>${m.id==='repair'?'检查故障样布，拆回并修复':'选纱整经，操作织机逐纬制作'}</li><li>验收后完成解释与迁移问题</li><li>带着真实样布进入木偶创作台</li></ol><div class="split"><span>建议 ${m.minutes} 分钟</span><span>解锁：${m.unlocks}</span></div></section>${m.id==='transfer'?'<div class="paper-note">本关不显示下一步答案。可以自由观察任务书、工具和自己的制作记录，验收后再看诊断。</div>':''}${btn(state.run?'接受委托，开始一块新样布':'接受委托，进入织造台','begin', 'primary',!canEnter(m))}<p class="fine">开始新委托会替换当前未收藏的工作台；已收藏作品和研习章会保留。</p>${btn('查看文化与工具手册','archive','secondary')}`;}
+function swatches(axis){return `<div class="yarn-row">${YARNS.map(y=>`<button class="yarn ${state.run[axis+'Yarn']===y.id?'selected':''}" style="--color:${y.color}" data-action="yarn-${axis}-${y.id}" aria-label="${axis==='warp'?'经线':'纬线'}${y.name}" aria-pressed="${state.run[axis+'Yarn']===y.id}"><i></i><span>${y.name}</span></button>`).join('')}</div>`;}
+function range(label,id,value){return `<label class="range-label" for="${id}">${label}<output id="${id}-value">${value}</output></label><input id="${id}" data-setting="${id}" type="range" min="15" max="95" value="${value}"><div class="range-ends"><span>松 / 疏</span><span>适中 45–75</span><span>紧 / 密</span></div>`;}
+function loom(){
+ const run=state.run;if(!run)return brief();const m=missionOf(run.missionId),report=inspect(run),independent=m.id==='transfer';
+ if(run.submitted)return `<div class="eyebrow">COMMISSION COMPLETE</div><h1>样布已通过验收。</h1><p class="intro">先解释你刚才的制作，再把样布带到木偶台。你的操作记录已保留。</p><div class="actions">${btn('回到验收报告','review')}${btn('进入木偶创作','doll','secondary')}</div>${ledger(run)}`;
+ return `<div class="panel-handle"></div><div class="section-title tight"><div><span class="eyebrow">${run.phase==='warp'?'STEP 01 / 整经上机':run.pending?'STEP 04 / 打纬入布':'STEP 02–03 / 提综与投梭'}</span><h2>${run.phase==='warp'?'先让经线站好队':run.pending?'纬线就位，推紧这一纬':run.shed!==null?'梭口已打开，现在投梭':'抬起经线，给梭子让路'}</h2></div>${btn('任务书','show-brief','outline-small')}</div><div class="segmented">${btn('↻ 环绕观察','tool-rotate',activeTool==='rotate'?'selected':'')}${btn('↔ 操作织机','tool-work',activeTool==='work'?'selected':'')}</div>${run.phase==='warp'?`<div class="tool-section"><div class="section-title tight"><b>经线 · 纵向</b><span>${run.warpCount} / 12 根</span></div>${swatches('warp')}<div class="segmented">${btn('素色经线','style-solid',run.warpStyle==='solid'?'selected':'')}${btn('赭红边经','style-border',run.warpStyle==='border'?'selected':'')}</div><div class="warp-progress">${Array.from({length:12},(_,i)=>`<i class="${i<run.warpCount?'wound':''}"></i>`).join('')}</div>${btn('绕经一组（4 根）','op-warp','secondary',run.warpCount===12)}${range('经线张力','tension',run.tension)}${btn('绷经上机 →','op-dress','primary',run.warpCount!==12)}</div>`:`<div class="tool-section"><div class="section-title tight"><b>提综 · 改变经线上下关系</b>${chip(run.shed===null?'等待提综':`综组 ${run.shed+1} 已抬起`)}</div><div class="shaft-buttons">${Array.from({length:m.type==='twill'?4:2},(_,i)=>btn(m.type==='twill'?`提 ${i+1} + ${(i+1)%4+1} 综`:`提第 ${i+1} 组综`,`shed-${i}`,`shaft ${run.shed===i?'selected':''}`,!!run.pending)).join('')}</div>${!independent&&run.rows.length===0?`<p class="tool-note">${m.type==='plain'?'第一纬从第 1 组综开始，之后每纬交换两组。':'四组综依次推进：1+2 → 2+3 → 3+4 → 4+1。'}</p>`:''}<div class="section-title tight"><b>纬线 · 随梭穿行</b><span>梭子在${run.rows.length%2===0?'左':'右'}端</span></div>${swatches('weft')}<div class="shuttle-actions">${btn('← 向左投梭','throw-left','secondary',!!run.pending||run.shed===null||run.rows.length%2===0)}${btn('向右投梭 →','throw-right','secondary',!!run.pending||run.shed===null||run.rows.length%2!==0)}</div>${range('打纬力度','pressure',run.beat)}${btn(run.pending?'向下打纬 · 织入这一纬':'打纬（先提综并投梭）','op-beat','primary',!run.pending)}<p class="tool-note">切到「操作织机」后可在三维区横划投梭、下划打纬。环绕模式只调整视角。</p><details><summary>调整张力与观察工具</summary>${range('经线张力','tension',run.tension)}${btn('俯视织机','camera-top','secondary')}</details></div>`}<div class="workbench-footer">${btn('拆回一纬','op-undo','secondary',!run.rows.length&&!run.pending)}${btn('放大看布','inspect','secondary',!run.rows.length)}${btn('提交验收','op-submit','primary',run.rows.length!==m.rows||!!run.pending)}</div>${!independent?mentor():`<div class="independent-banner">独立迁移中 · 下一步提示已收起。查看委托色序与起始要求后，自行安排制作。</div>`}<details class="ledger-details"><summary>制作记录与结构图 · ${run.events.length} 次操作</summary>${ledger(run)}<canvas id="inline-draft" width="480" height="320" aria-label="实际交织结构图"></canvas></details>`;
+}
+function mentor(){const run=state.run,reply=coach(run,run.hints>1?2:1);return `<section class="mentor"><div class="mentor-head"><span class="avatar">织</span><div><b>工坊导师</b><small>${mentorReply?'已连接模型服务':'离线工艺诊断 · 依据操作状态'}</small></div>${btn(mentorOpen?'收起':'请教一下','mentor-toggle','outline-small')}</div>${mentorOpen?`<p>${esc(mentorReply||reply.text)}</p><div class="mentor-actions">${btn('给我观察线索','hint-1','text-button')}${btn('更具体一点','hint-2','text-button')}${btn(mentorBusy?'正在思考…':'结合我的操作问导师','ask-ai','text-button',mentorBusy)}</div>${sourceLink(KNOWLEDGE.find(k=>k.id===reply.source)?.source||'plain')}`:'<p class="mentor-preview">需要时再展开提示，先试着自己观察。</p>'}</section>`;}
+function ledger(run){return `<div class="ledger"><table><thead><tr><th>纬</th><th>综组</th><th>纬线</th><th>张力</th><th>打纬</th></tr></thead><tbody>${run.rows.map((r,i)=>`<tr><td>${i+1}</td><td>${r.shed+1}</td><td><i style="background:${yarnOf(r.yarn).color}"></i>${yarnOf(r.yarn).name}</td><td>${r.tension}</td><td>${r.beat}</td></tr>`).join('')||'<tr><td colspan="5">还没有织入纬线</td></tr>'}</tbody></table></div>`;}
+function doll(){
+ if(!state.run?.submitted)return brief();const draft=state.draft;
+ return `<div class="panel-handle"></div><div class="section-title tight"><div><span class="eyebrow">MAKE IT YOURS / 实际样布已映射</span><h2>器形、布面与手绘，组成你的作品</h2></div>${btn('查看样布','inspect','outline-small')}</div><div class="tool-section"><h3>木坯器形</h3><div class="segmented four">${[['cone','圆锥'],['capsule','圆润'],['kokeshi','喇叭身'],['matryoshka','蛋形']].map(([k,n])=>btn(n,`shape-${k}`,draft.shape===k?'selected':'')).join('')}</div><div class="two-columns"><label>木材<select data-setting="wood">${[['beech','山毛榉'],['maple','枫木'],['birch','白桦'],['walnut','胡桃木']].map(([k,n])=>`<option value="${k}" ${draft.wood===k?'selected':''}>${n}</option>`).join('')}</select></label><label>表面处理<select data-setting="finish">${[['raw','素木'],['wax','蜂蜡'],['gloss','亮漆']].map(([k,n])=>`<option value="${k}" ${draft.finish===k?'selected':''}>${n}</option>`).join('')}</select></label></div><h3>布面构图</h3><div class="segmented">${[['repeat','整身平铺'],['panel','正面裁片'],['bands','分段色带']].map(([k,n])=>btn(n,`layout-${k}`,draft.layout===k?'selected':'')).join('')}</div><label class="range-label" for="cloth-scale">纹样重复 <output>${draft.scale} 倍</output></label><input id="cloth-scale" data-setting="scale" type="range" min="1" max="4" value="${draft.scale}"><h3>直接在三维木偶上创作</h3><div class="paint-tools">${[['rotate','↻ 环绕'],['brush','✎ 画笔'],['daisy','✿ 雏菊'],['leaf','❧ 叶子'],['star','✧ 星星']].map(([k,n])=>btn(n,`tool-${k}`,activeTool===k?'selected':'')).join('')}</div><div class="color-tools">${YARNS.map(y=>`<button aria-label="绘制${y.name}" style="--color:${y.color}" class="color-dot ${markColor===y.color?'selected':''}" data-action="ink-${y.id}"></button>`).join('')}${btn('撤销一笔','undo-mark','text-button',!draft.marks.length)}</div><p class="tool-note">环绕模式用于旋转；选择画笔或印章后直接点触木偶。装饰为个人创作，不赋予未经考证的传统含义。</p></div><label for="work-name">作品名称</label><input id="work-name" maxlength="30" placeholder="例如：海风里的第一块布" value="${esc(draft.name)}"><label for="reflection">说说你学到的结构，和你的设计意图</label><textarea id="reflection" maxlength="500" placeholder="我怎样让经纬交替？哪些是来源知识，哪些是我的创作？">${esc(state.reflection||'')}</textarea>${btn('保存作品与完整制作档案','save-work','primary',!allReview())}${!allReview()?btn('先完成验收解释 →','review','secondary'):''}<div class="actions">${btn('导出作品配方 JSON','export-draft','secondary')}${btn('导出样布 PNG','export-fabric','secondary')}</div>`;
+}
+function archive(){return `<div class="eyebrow">FIELD NOTES / 可追溯研学手册</div><h1>先认识手艺，<br>再理解工具。</h1><div class="archive-progress">已研读 ${state.read.length} / ${KNOWLEDGE.length} 条资料</div>${KNOWLEDGE.map(k=>`<article class="knowledge-card"><div class="section-title tight">${chip(k.tag)}<span>${state.read.includes(k.id)?'✓ 已研读':''}</span></div><h2>${k.title}</h2><p>${k.text}</p><blockquote>${k.takeaway}</blockquote>${sourceLink(k.source)}${btn(state.read.includes(k.id)?'已记入手册':'读完，记入我的手册',`read-${k.id}`,state.read.includes(k.id)?'text-button':'secondary')}</article>`).join('')}<section class="paper-note"><b>模型范围</b><p>当前织机用于解释提综、投梭、打纬与交织结构；张力和密度采用教学近似。尚未仿真真实材料力学、身体张力控制、复杂提花或完整纺染工序。</p></section>${btn(state.run?'回到当前制作':'接受第一份委托',state.run?'loom':'brief-first')}`;}
+function review(){const run=state.run;if(!run?.submitted)return `<h1>还没有验收的样布</h1>${btn('回到织造台','loom')}`;const report=inspect(run);return `<div class="eyebrow">REFLECT / 验收不是终点</div><h1>能完成，也要<br>能说清为什么。</h1><div class="report-grid"><div><b>${report.structure}%</b><small>结构符合度</small></div><div><b>${report.quality}</b><small>样布质量</small></div><div><b>${run.hints}</b><small>求助次数</small></div><div><b>${run.undoCount}</b><small>拆纬修复</small></div></div>${REVIEW.map(q=>`<section class="review-question"><h3>${q.question}</h3>${q.options.map((o,i)=>btn(o,`review-${q.id}-${i}`,`answer ${state.review[q.id]===i?'selected':''}`)).join('')}${state.review[q.id]!==undefined?`<p class="answer-feedback ${state.review[q.id]===q.answer?'correct':''}">${state.review[q.id]===q.answer?'✓ '+q.reason:'再回忆一下实际的操作与研学资料。'}</p>`:''}</section>`).join('')}${allReview()?`<section class="paper-note success"><b>解释验证通过 · 研习章已记入档案</b><p>下一份委托会改变故障条件或起始规则，继续检验你能否迁移所学。</p></section>${btn('带着样布去木偶台 →','doll')}`:''}${btn('查看完整制作记录','inspect','secondary')}`;}
+function journal(){return `<div class="eyebrow">LEARNING PORTFOLIO / 学习证据</div><div class="section-title"><h1>作品会留下，<br>过程也会。</h1>${btn('设置','settings','outline-small')}</div><div class="report-grid"><div><b>${Object.keys(state.completed).length}</b><small>通过委托</small></div><div><b>${state.works.length}</b><small>收藏作品</small></div><div><b>${state.read.length}</b><small>研读资料</small></div><div><b>${state.stats.runs}</b><small>制作尝试</small></div></div><h2>能力进度</h2><div class="skill-list">${MISSIONS.map(m=>`<div><span>${m.title}</span><b>${state.completed[m.id]?'已验证 ✓':'待实训'}</b></div>`).join('')}</div><h2>我的作品</h2>${state.works.length?state.works.map(w=>`<article class="saved-work"><canvas class="work-thumbnail" width="160" height="160" data-work="${w.id}" aria-label="作品样布"></canvas><div><small>${esc(w.created)}</small><h3>${esc(w.name)}</h3><p>${missionOf(w.run.missionId).title} / ${w.run.rows.length} 纬</p>${btn('在三维台重开',`open-${w.id}`,'text-button')}${btn('导出配方',`export-${w.id}`,'text-button')}</div></article>`).join(''):'<div class="empty-state">完成一份委托，在木偶台保存你的第一件作品。作品包含实际纬线、工具参数、装饰位置和过程事件。</div>'}${btn('回工坊接下一份委托 →','village')}`;}
+function settings(){return `<div class="eyebrow">SETTINGS / 学习服务</div><h1>导师与本机数据</h1><section class="knowledge-card"><h2>大模型导师服务</h2><p>默认使用离线工艺诊断。连接部署好的导师服务后，可把任务、最近操作和知识来源发给模型，获得自然语言讲解。模型建议不会自动修改你的作品。</p><label for="endpoint">服务地址（HTTPS，不填写 API Key）</label><input id="endpoint" type="url" placeholder="https://your-service.example" value="${esc(state.endpoint)}">${btn('保存服务地址','save-endpoint')}<p class="fine">模型密钥保存在你部署的 Node 服务环境变量中。只有点击「问导师」才会发送当前制作状态；不会发送全部收藏作品。</p></section><section class="knowledge-card"><h2>设备与数据</h2><p>离线学习、三维制作与本机存档无需账号。作品可通过 Android 文件选择器导出，卸载应用会清除本机存档。</p>${btn('导出学习档案备份','export-backup','secondary')}${btn('清除本机记录','reset','danger-button')}</section>${btn('返回我的档案','journal','secondary')}`;}
+function showInspector(){const run=state.run;if(!run?.rows.length){notice='先织入一纬，再观察布面。';render();return;}const m=missionOf(run.missionId),report=inspect(run),revealed=m.id!=='transfer'||run.submitted;const dialog=document.querySelector('#inspector');document.querySelector('#inspector-content').innerHTML=`<div class="section-title tight"><h2>你织出的布 · ${run.rows.length} 纬</h2>${btn('关闭','close-inspector','outline-small')}</div><p class="fine">颜色来自你选择的纱线，上下关系来自实际提综记录。点击某一纬定位观察。</p><canvas id="fabric-large" width="480" height="480" aria-label="真实样布放大预览"></canvas><div class="row-picker">${run.rows.map((_,i)=>btn(`${i+1}`,`select-row-${i}`,selectedRow===i?'selected':'')).join('')}</div><canvas id="draft-large" width="480" height="320" aria-label="经纬交织图"></canvas>${ledger(run)}${revealed?`<div class="diagnosis"><h3>${report.issues.length?'发现的问题':'当前织物没有检测到结构缺陷'}</h3>${report.issues.map(i=>`<p>${i.text}</p>`).join('')}</div>`:'<p class="independent-banner">独立挑战期间只呈现实际结构，不标注正确答案。</p>'}${btn('导出当前样布 PNG','export-fabric','secondary')}`;const preview=drawFabric(run,{size:480,highlight:selectedRow});document.querySelector('#fabric-large').getContext('2d').drawImage(preview,0,0);drawDraft(document.querySelector('#draft-large'),run,selectedRow);if(!dialog.open)dialog.showModal();}
+function paintThumbnails(){for(const canvas of document.querySelectorAll('[data-work]')){const w=state.works.find(w=>w.id===canvas.dataset.work);if(w)canvas.getContext('2d').drawImage(drawFabric(w.run,{size:160}),0,0);}}
+function handleSceneTool(tool){if(tool==='beat')act({type:'BEAT'});else if(tool.startsWith('throw-'))act({type:'THROW',direction:tool.slice(6)});else if(tool==='inspect')showInspector();else if(tool==='shuttle')act({type:'THROW',direction:state.run.rows.length%2===0?'right':'left'});else if(tool==='shed'){notice='使用下方综组按钮，选择要抬起的经线。不同综组会改变梭口与交织关系。';render();}}
+function addMark(uv){if(!state.run?.submitted||activeTool==='rotate')return;state.draft.marks.push({...uv,kind:activeTool,color:markColor});state.draft.marks=state.draft.marks.slice(-100);persist();scene.update(state);const undo=document.querySelector('[data-action="undo-mark"]');if(undo)undo.disabled=false;}
+async function exportFile(name,mime,textOrData){
+ const data=mime==='image/png'?textOrData.split(',')[1]:btoa(unescape(encodeURIComponent(textOrData)));
+ if(window.NativeFiles?.saveFile){window.NativeFiles.saveFile(name,mime,data);notice='请选择保存位置。';render();return;}
+ const a=document.createElement('a');a.href=`data:${mime};base64,${data}`;a.download=name;a.click();notice='已生成导出文件。';render();
+}
+function recipe(work){return JSON.stringify({format:'zhiyou-workshop-recipe',version:2,...work,sources:KNOWLEDGE.map(k=>({id:k.id,source:sourceOf(k.source)})),scope:'通用织造教学与个人创作，非传统纹样复原'},null,2);}
+async function handleAction(a){
+ if(['village','loom','doll','archive','journal','settings','review'].includes(a)){navigate(a);if(a==='journal')paintThumbnails();return;}
+ if(a.startsWith('brief-')){state.missionId=a.slice(6);if(!canEnter(missionOf(state.missionId)))return;navigate('brief');return;}
+ if(a==='begin'){
+  const m=missionOf(state.missionId);if(!canEnter(m))return;
+  if(!state.read.includes('culture')||!state.read.includes('warp')){notice='接委托前，请先研读「四门手艺」和「经线固定，纬线穿行」，了解文化与工具。';navigate('archive');return;}
+  if(state.run&&!state.run.submitted&&!confirm('开始新委托会替换未完成的样布。继续吗？'))return;
+  state.run=createRun(m.id);state.stats.runs++;state.review={};state.draft={...newState().draft};state.reflection='';mentorReply='';notice=m.id==='repair'?'故障样布已上机。先放大检查，找到需要拆回的位置。':'点击纱架选经线，开始整经。';navigate('loom');return;
+ }
+ if(a==='show-brief'){const m=currentMission();const dialog=document.querySelector('#inspector');document.querySelector('#inspector-content').innerHTML=`<div class="eyebrow">工坊委托 ${m.number}</div><h1>${m.title}</h1><p>${m.description}</p><div class="paper-note">${m.deliverable}${m.colorRule?'<p>纬线色序：赭红×2 → 本白×2 → 赭红×2 → 本白×2。</p>':''}</div>${btn('回到制作','close-inspector')}`;dialog.showModal();return;}
+ if(a.startsWith('read-')){const id=a.slice(5);if(!state.read.includes(id))state.read.push(id);notice='资料已记入研学手册。';persist();render();return;}
+ if(a.startsWith('yarn-')){const [,axis,value]=a.split('-');act({type:'YARN',axis,value});return;}
+ if(a.startsWith('style-')){act({type:'STYLE',value:a.slice(6)});return;}
+ if(a.startsWith('shed-')){act({type:'SHED',value:Number(a.slice(5))});return;}
+ if(a.startsWith('throw-')){act({type:'THROW',direction:a.slice(6)});return;}
+ if(a.startsWith('op-')){act({type:a.slice(3).toUpperCase()});return;}
+ if(a==='inspect'){showInspector();return;}
+ if(a==='close-inspector'){document.querySelector('#inspector').close();return;}
+ if(a.startsWith('select-row-')){selectedRow=Number(a.slice(11));showInspector();return;}
+ if(a==='camera-top'){scene.topView();return;}
+ if(a==='camera-reset'){scene.setStation(['doll','archive'].includes(state.page)?state.page:state.page==='loom'?'loom':'village');return;}
+ if(a==='mentor-toggle'){mentorOpen=!mentorOpen;render();return;}
+ if(a.startsWith('hint-')){mentorReply='';act({type:'HINT',level:Number(a.slice(5))});return;}
+ if(a==='ask-ai'){
+  if(!state.endpoint){notice='尚未配置模型服务；离线诊断可继续使用。在「我的档案 → 设置」填写部署好的 HTTPS 服务地址。';render();return;}
+  mentorBusy=true;const revision=JSON.stringify([state.run.missionId,state.run.events.at(-1)]);render();try{const reply=await askMentor(state.endpoint,state.run);if(revision===JSON.stringify([state.run.missionId,state.run.events.at(-1)]))mentorReply=reply;else notice='制作状态已变化，请针对当前步骤重新请教导师。';}catch(e){mentorReply='';notice=e.message;}finally{mentorBusy=false;render();}return;
+ }
+ if(a.startsWith('review-')){const [,id,value]=a.split('-');state.review[id]=Number(value);if(allReview()){state.completed[state.run.missionId]={passed:true,hints:state.run.hints,quality:inspect(state.run).quality,events:state.run.events.length};notice='解释验证通过，下一份委托已解锁。';}persist();render();return;}
+ if(a.startsWith('shape-'))state.draft.shape=a.slice(6);
+ else if(a.startsWith('layout-'))state.draft.layout=a.slice(7);
+ else if(a.startsWith('tool-')){activeTool=a.slice(5);notice=activeTool==='rotate'?'单指环绕观察，双指缩放。':activeTool==='work'?'横向划动投梭，向下划动打纬。此模式不会同时旋转相机。':'直接点触三维木偶绘制；切回环绕可转到另一面。';}
+ else if(a.startsWith('ink-'))markColor=yarnOf(a.slice(4)).color;
+ else if(a==='undo-mark')state.draft.marks.pop();
+ else if(a==='save-work'){
+  if(!state.run?.submitted||!allReview())return;
+  const work={id:crypto.randomUUID(),name:state.draft.name.trim()||'海风里的第一块布',created:new Date().toLocaleDateString('zh-CN'),run:structuredClone(state.run),draft:structuredClone(state.draft),reflection:state.reflection||'',review:{...state.review}};state.works.unshift(work);state.works=state.works.slice(0,16);notice='作品、实际样布、手绘装饰与制作过程已保存。';navigate('journal');paintThumbnails();return;
+ }
+ else if(a.startsWith('open-')){const w=state.works.find(w=>w.id===a.slice(5));if(w){if(state.run&&!state.run.submitted&&!confirm('重开收藏作品会替换未完成的样布。继续吗？'))return;state.run=structuredClone(w.run);state.draft=structuredClone(w.draft);state.reflection=w.reflection;state.review={...(w.review||{})};navigate('doll');}return;}
+ else if(a==='export-fabric'){if(!state.run?.rows.length)return;await exportFile('zhiyou-fabric.png','image/png',drawFabric(state.run,{size:1024,repeat:2}).toDataURL());return;}
+ else if(a==='export-draft'){await exportFile('zhiyou-recipe.json','application/json',recipe({name:state.draft.name,run:state.run,draft:state.draft,reflection:state.reflection||''}));return;}
+ else if(a==='export-backup'){await exportFile('zhiyou-learning-backup.json','application/json',JSON.stringify(state,null,2));return;}
+ else if(a.startsWith('export-')){const w=state.works.find(w=>w.id===a.slice(7));if(w)await exportFile('zhiyou-recipe.json','application/json',recipe(w));return;}
+ else if(a==='save-endpoint'){const value=document.querySelector('#endpoint').value.trim();if(value&&!/^https:\/\/[^\s]+$/.test(value)){notice='请填写 HTTPS 服务地址，不填写 API Key。';render();return;}state.endpoint=value.replace(/\/$/,'');notice='服务地址已保存。';}
+ else if(a==='reset'){if(!confirm('清除本机所有样布、作品与学习记录？建议先导出备份。'))return;state=newState();notice='本机学习记录已清除。';scene.setStation('village');}
+ persist();render();
+}
+app.addEventListener('click',e=>{const element=e.target.closest('[data-action]');if(!element||element.disabled)return;e.preventDefault();handleAction(element.dataset.action).catch(error=>{notice='操作未完成：'+error.message;render();});});
+app.addEventListener('input',e=>{
+ if(e.target.id==='work-name'){state.draft.name=e.target.value;persist();}
+ if(e.target.id==='reflection'){state.reflection=e.target.value;persist();}
+ if(e.target.type==='range'){const output=document.querySelector(`#${e.target.id}-value`);if(output)output.textContent=e.target.value;}
 });
-window.addEventListener('pagehide',()=>{persist();dispose();});
-window.addEventListener('pageshow',e=>{if(e.persisted)render();});
-window.zhiyouBack=()=>{if(page==='home')return false;page='home';message='';render();return true;};render();
+app.addEventListener('change',e=>{
+ const key=e.target.dataset.setting;if(!key)return;
+ if(key==='tension'||key==='pressure')act({type:key==='tension'?'TENSION':'PRESSURE',value:Number(e.target.value)});
+ else if(['wood','finish','scale'].includes(key)){state.draft[key]=key==='scale'?Number(e.target.value):e.target.value;persist();render();}
+});
+window.zhiyouBack=()=>{const modal=document.querySelector('#inspector');if(modal.open){modal.close();return true;}if(state.page==='village')return false;navigate('village');return true;};
+window.addEventListener('pagehide',persist);document.addEventListener('visibilitychange',()=>{if(document.hidden)persist();});
+window.__zhiyouDiagnostics=()=>({version:2,page:state.page,webgl:!scene.failed,phase:state.run?.phase,rows:state.run?.rows.length||0,savedWorks:state.works.length,completed:Object.keys(state.completed).length});
+scene.setStation(['loom','doll','archive'].includes(state.page)?state.page:'village',true);render();if(state.page==='journal')paintThumbnails();

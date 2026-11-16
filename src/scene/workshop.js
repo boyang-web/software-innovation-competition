@@ -101,7 +101,7 @@ export class Workshop {
   this.label('纺  ·  染  ·  织  ·  绣',-3,2.05,-1.36,1.15);
   this.label('资 料 台',-3,.32,-.15,1.05);
  }
- setStation(station,instant=false){if(this.failed)return;this.dirtyUntil=performance.now()+2000;this.station=station;this.interact='direct';this.controls.enabled=true;this.cancelGesture();const p=POSITIONS[station]||POSITIONS.village;this.goalEye=new T.Vector3(...p.eye);this.goalTarget=new T.Vector3(...p.target);this.fitView(this.goalEye,this.goalTarget,station);if(instant){this.camera.position.copy(this.goalEye);this.controls.target.copy(this.goalTarget);this.controls.update();}else this.animatingCamera=true;}
+ setStation(station,instant=false){if(this.failed)return;this.dirtyUntil=performance.now()+2000;this.station=station;this.interact='direct';this.cancelGesture();this.controls.enableDamping=false;this.controls.update();this.controls.enableDamping=true;this.cameraStart=performance.now();this.startEye=this.camera.position.clone();this.startTarget=this.controls.target.clone();const p=POSITIONS[station]||POSITIONS.village;this.goalEye=new T.Vector3(...p.eye);this.goalTarget=new T.Vector3(...p.target);this.fitView(this.goalEye,this.goalTarget,station);if(instant){this.camera.position.copy(this.goalEye);this.controls.target.copy(this.goalTarget);this.controls.update();this.animatingCamera=false;}else{this.animatingCamera=true;this.controls.enabled=false;}}
  fitView(eye,target,station){
   if(!this.targets?.length)return;
   this.scene.updateMatrixWorld(true);
@@ -116,8 +116,8 @@ export class Workshop {
    eye.copy(target).add(camera.position.clone().sub(target).multiplyScalar(Math.min(2,factor)*1.025));
   }
  }
- topView(){this.dirtyUntil=performance.now()+2000;const p=POSITIONS.top;this.goalEye=new T.Vector3(...p.eye);this.goalTarget=new T.Vector3(...p.target);this.animatingCamera=true;}
- setTool(tool){this.dirtyUntil=performance.now()+600;this.interact=tool;if(!this.drag&&!this.painting)this.controls.enabled=true;}
+ topView(){this.dirtyUntil=performance.now()+2000;this.cameraStart=performance.now();this.startEye=this.camera.position.clone();this.startTarget=this.controls.target.clone();const p=POSITIONS.top;this.goalEye=new T.Vector3(...p.eye);this.goalTarget=new T.Vector3(...p.target);this.animatingCamera=true;}
+ setTool(tool){this.dirtyUntil=performance.now()+600;this.interact=tool;if(!this.drag&&!this.painting)this.controls.enabled=!this.animatingCamera;}
  update(state){
   this.state=state;if(this.failed)return;this.dirtyUntil=performance.now()+1500;this.updateTargets();
   const run=state.run;
@@ -143,6 +143,7 @@ export class Workshop {
  }
  hit(event){const rect=this.renderer.domElement.getBoundingClientRect();this.pointer.set((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1);this.raycaster.setFromCamera(this.pointer,this.camera);return this.raycaster.intersectObjects(this.scene.children,true)[0];}
  pointerDown(e){
+  if(this.animatingCamera){e.preventDefault();e.stopImmediatePropagation();return;}
   if(e.isPrimary===false){this.cancelGesture();return;}
   this.down={x:e.clientX,y:e.clientY,time:performance.now(),pointer:e.pointerId};
   const front=this.hit(e);
@@ -311,7 +312,7 @@ export class Workshop {
  }
  resize(){if(this.failed)return;this.dirtyUntil=performance.now()+1200;const {clientWidth:w,clientHeight:h}=this.host;this.renderer.setSize(w,h);this.camera.aspect=w/Math.max(1,h);this.camera.updateProjectionMatrix();if(!this.drag){this.fitView(this.camera.position,this.controls.target,this.station);this.controls.update();}}
  tick(time){if(this.disposed||document.hidden){this.frame=0;return;}this.frame=requestAnimationFrame(t=>this.tick(t));if(this.lastTime&&time-this.lastTime<(this.mobile?65:32))return;this.lastTime=time;this.controls.update();if(!this.drag&&!this.animatingCamera&&time>this.dirtyUntil)return;
-  if(this.animatingCamera){ease(this.camera.position,this.goalEye,.12);ease(this.controls.target,this.goalTarget,.12);if(this.camera.position.distanceTo(this.goalEye)<.015)this.animatingCamera=false;}
+  if(this.animatingCamera){const t=Math.min(1,(time-this.cameraStart)/650),k=t*t*(3-2*t);this.camera.position.lerpVectors(this.startEye,this.goalEye,k);this.controls.target.lerpVectors(this.startTarget,this.goalTarget,k);if(t===1){this.animatingCamera=false;this.controls.enabled=true;}}
   if(this.shuttleTarget!==undefined&&this.drag?.target.id!=='shuttle')this.shuttle.position.x+=(this.shuttleTarget-this.shuttle.position.x)*.18;
   const dt=time-(this.beatStart||-1000);if(this.drag?.target.id!=='beater')this.beater.position.z=.72-(dt<600?Math.sin(dt/600*Math.PI)*.45:0);
   for(const t of this.targets)if(t.marker.visible){const k=1+Math.sin(time/450)*.12;t.marker.scale.setScalar(k);}

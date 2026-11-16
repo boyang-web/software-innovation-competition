@@ -199,7 +199,7 @@ app.addEventListener('change',e=>{
 });
 window.zhiyouBack=()=>{const workbook=document.querySelector('#workbook');if(workbook.open){workbookMode=null;workbook.close();return true;}const modal=document.querySelector('#inspector');if(modal.open){modal.close();return true;}if(state.page==='village')return false;navigate('village');return true;};
 window.addEventListener('pagehide',persist);document.addEventListener('visibilitychange',()=>{if(document.hidden)persist();});
-window.__zhiyouDiagnostics=()=>({version:3,page:state.page,webgl:!scene.failed,phase:state.run?.phase,rows:state.run?.rows.length||0,savedWorks:state.works.length,completed:Object.keys(state.completed).length});
+window.__zhiyouDiagnostics=()=>({version:3,cameraReady:!scene.animatingCamera,page:state.page,webgl:!scene.failed,phase:state.run?.phase,rows:state.run?.rows.length||0,savedWorks:state.works.length,completed:Object.keys(state.completed).length});
 scene.setStation(['loom','doll','archive'].includes(state.page)?state.page:'village',true);render();if(state.page==='journal')paintThumbnails();
 
 // Read-only scene projection for accessibility tooling and real pointer tests.

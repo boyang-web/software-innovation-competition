@@ -9,7 +9,8 @@ const click=async action=>{await page.locator(`[data-action="${action}"]`).filte
 const saved=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('zhiyou-workshop-v2')));
 async function point(id){
  let last=null;
- for(let attempt=0;attempt<50;attempt++){
+ for(let attempt=0;attempt<80;attempt++){
+  if(!(await page.evaluate(()=>window.__zhiyouDiagnostics().cameraReady))){await page.waitForTimeout(80);continue;}
   const target=await page.evaluate(id=>window.__zhiyouSceneTargets().find(t=>t.id===id),id);
   if(target?.visible&&(!last||Math.hypot(target.x-last.x,target.y-last.y)<.8)){if(last)return target;}
   last=target;await page.waitForTimeout(80);

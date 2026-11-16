@@ -1,0 +1,20 @@
+plugins { id 'com.android.application' }
+android {
+ namespace 'cn.zhiyou.app'
+ compileSdk 35
+ defaultConfig { applicationId 'cn.zhiyou.app'; minSdk 26; targetSdk 35; versionCode 1; versionName '0.1.0' }
+ signingConfigs {
+  demo {
+   storeFile file(System.getenv('DEMO_KEYSTORE') ?: "${System.properties['user.home']}/.android/debug.keystore")
+   storePassword System.getenv('DEMO_STORE_PASSWORD') ?: 'android'
+   keyAlias System.getenv('DEMO_KEY_ALIAS') ?: 'androiddebugkey'
+   keyPassword System.getenv('DEMO_KEY_PASSWORD') ?: 'android'
+  }
+ }
+ buildTypes { release { signingConfig signingConfigs.demo; minifyEnabled false } }
+ sourceSets { main { assets.srcDirs = ['build/generated/assets'] } }
+ compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+tasks.register('copyWebAssets', Copy) { from '../../dist'; into 'build/generated/assets/www' }
+tasks.named('preBuild').configure { dependsOn 'copyWebAssets' }
+dependencies { implementation 'androidx.webkit:webkit:1.12.1' }

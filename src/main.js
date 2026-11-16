@@ -215,3 +215,5 @@ function positionLabels(time=0){
 positionLabels();
 document.querySelector('#workbook').addEventListener('cancel',()=>{workbookMode=null;});
 if(['brief','review','journal','settings'].includes(state.page))openWorkbook();
+
+window.__zhiyouDollSurface=()=>scene.surfacePoint();

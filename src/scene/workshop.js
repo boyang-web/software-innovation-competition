@@ -145,6 +145,10 @@ export class Workshop {
  pointerDown(e){
   if(e.isPrimary===false){this.cancelGesture();return;}
   this.down={x:e.clientX,y:e.clientY,time:performance.now(),pointer:e.pointerId};
+  const front=this.hit(e);
+  if(this.station==='doll'&&['brush','daisy','leaf','star','blossom'].includes(this.interact)&&front?.object===this.doll.mesh){
+   this.painting=true;this.controls.enabled=false;this.markAt(e);this.renderer.domElement.setPointerCapture(e.pointerId);return;
+  }
   const target=this.pickTarget(e);
   if(target){
    this.drag={target,start:this.down,tension:this.state?.run?.tension??60};
@@ -288,6 +292,13 @@ export class Workshop {
   if(this.failed)return [];
   this.scene.updateMatrixWorld(true);const rect=this.renderer.domElement.getBoundingClientRect();
   return this.targets.filter(t=>t.enabled).map(t=>{const p=t.object.getWorldPosition(new T.Vector3()).project(this.camera);return {id:t.id,label:t.label,primary:t.primary,x:rect.left+(p.x+1)*rect.width/2,y:rect.top+(1-p.y)*rect.height/2,visible:p.z>-1&&p.z<1&&p.x>-.96&&p.x<.96&&p.y>-.94&&p.y<.94};});
+ }
+ surfacePoint(){
+  if(this.failed)return null;
+  this.scene.updateMatrixWorld(true);this.doll.mesh.geometry.computeBoundingBox();
+  const box=this.doll.mesh.geometry.boundingBox;
+  const point=this.doll.mesh.localToWorld(new T.Vector3(0,box.min.y+(box.max.y-box.min.y)*.48,0)).project(this.camera);
+  const rect=this.renderer.domElement.getBoundingClientRect();return {x:rect.left+(point.x+1)*rect.width/2,y:rect.top+(1-point.y)*rect.height/2};
  }
  pickTarget(event){
   const points=this.targetPoints().filter(t=>t.visible).map(t=>({...t,distance:Math.hypot(t.x-event.clientX,t.y-event.clientY)})).filter(t=>t.distance<25).sort((a,b)=>a.distance-b.distance);

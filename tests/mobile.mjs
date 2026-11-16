@@ -45,7 +45,7 @@ try{
  await touch('submit');await review();await click('close-workbook');
  await home();await touch('station-doll');await touch('shape-capsule');await touch('layout-panel');await touch('ink-rust');await touch('tool-star');
  // Paint the actual projected doll, not the workbench controls.
- await page.waitForTimeout(500);const canvas=await page.locator('#scene canvas').boundingBox();for(const [u,v]of [[.5,.5],[.5,.44],[.48,.48]])await page.touchscreen.tap(canvas.x+canvas.width*u,canvas.y+canvas.height*v);
+ await page.waitForTimeout(900);const surface=await page.evaluate(()=>window.__zhiyouDollSurface());for(const [dx,dy]of [[0,0],[0,-12],[8,0]])await page.touchscreen.tap(surface.x+dx,surface.y+dy);
  assert.ok((await saved()).draft.marks.length>0,'must paint through a 3D surface hit');await shot('doll');
  await touch('save');await page.getByLabel('作品名称',{exact:true}).fill('在场景里织成的布');await click('save-work');assert.equal(await page.locator('.saved-work').count(),1);
  await page.reload();await page.waitForFunction(()=>window.__zhiyouSceneTargets);assert.equal(await page.locator('.saved-work').count(),1);await click('close-workbook');
@@ -55,4 +55,4 @@ try{
  for(const width of [320,390,768]){await page.setViewportSize({width,height:844});await home();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`overflow ${width}`);await touch('station-loom');await point('inspect');}
  await click('journal');const downloadPromise=page.waitForEvent('download');await page.locator('[data-action^="export-"]').filter({visible:true}).first().click();await (await downloadPromise).saveAs('test-results/exported-recipe.json');
  assert.deepEqual(errors,[]);console.log('PASS: all 4 missions via physical objects; drag-only winding/shuttle/beater; wrong-direction rejection; fault repair; in-scene material/tool selection and painting; reload/export; no main tab menu; responsive.');
-}finally{await browser.close();}
+}catch(error){await page.screenshot({path:'test-results/v3-failure.png'});console.error('Scene diagnostics:',await page.evaluate(()=>({state:window.__zhiyouDiagnostics?.(),targets:window.__zhiyouSceneTargets?.()})));throw error;}finally{await browser.close();}

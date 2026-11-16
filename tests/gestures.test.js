@@ -1,0 +1,4 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {resolveGesture} from '../src/scene/gestures.js';
+test('线头和打纬杆要求匹配方向的拖动，轻触不提交工艺操作',()=>{assert.ok(resolveGesture('warp-thread',0,0).hint);assert.ok(resolveGesture('warp-thread',0,80).hint);assert.equal(resolveGesture('warp-thread',0,-70).tool,'op-warp');assert.ok(resolveGesture('beater',70,0).hint);assert.equal(resolveGesture('beater',0,70).tool,'op-beat');});
+test('投梭基于被按住的梭子，区分左右并拒绝纵向拖动',()=>{assert.equal(resolveGesture('shuttle',80,0).tool,'throw-right');assert.equal(resolveGesture('shuttle',-80,0).tool,'throw-left');assert.ok(resolveGesture('shuttle',10,80).hint);});
+test('点选物件的移动容差及旋钮参数受限',()=>{assert.deepEqual(resolveGesture('shed-1',2,3),{tool:'shed-1'});assert.equal(resolveGesture('shed-1',40,0).cancelled,true);assert.equal(resolveGesture('tension',1000,0,{tension:60}).value,95);assert.equal(resolveGesture('tension',-1000,0,{tension:60}).value,15);});

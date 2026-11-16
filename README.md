@@ -1,4 +1,6 @@
-# 织游 · 山海工坊 v0.2
+> v0.3: Scene-first interaction. Tap physical objects and drag the actual tools. The toolbar is available on demand from the top-right pocket menu. See RELEASE_NOTES.md and docs/architecture.md for the current interaction flow.
+
+# 织游 · 山海工坊 v0.3
 
 Android 三维工艺学习原型。把文化资料、工具操作、实际织物、错误诊断、独立迁移与木偶创作连接成一条持续任务。不是完整非遗技艺复原，也不是已经验证学习成效的教育产品。
 
@@ -57,7 +59,7 @@ APK 包含全部三维与课程资产，可离线使用。手机需要支持现�
 - `npm test`：操作顺序、拒绝操作不污染状态、故障定位与修复、迁移相位和色序、斜纹、张力快照、存档、模型接口边界。
 - `npm run test:e2e`：四关真实 UI 闭环、织错拒收、拆纬、三维射线绘制、作品重载、导出、320/390/768px。
 - GitHub Actions：上述测试、APK 构建与 Android lint、Android 35 模拟器安装和真实 WebView 启动/本机持久化测试，全部通过后发布版本 Release。
-- v0.2 起缓存 Demo 签名；正式发行请在仓库 Secret `DEMO_KEYSTORE_BASE64` 配置稳定独立签名。v0.1 临时签名无法继承，升级冲突时需卸载旧版。
+- v0.3 起缓存 Demo 签名；正式发行请在仓库 Secret `DEMO_KEYSTORE_BASE64` 配置稳定独立签名。v0.1 临时签名无法继承，升级冲突时需卸载旧版。
 
 ## 内容与技术边界
 

@@ -27,10 +27,13 @@ public class WorkshopSmokeTest {
   fail("Bundled workshop did not initialize in Android WebView");
  }
  @Test public void offlineAssetsNativeExportAndProgressSurviveReload() throws Exception {
-  awaitReady();assertEquals("2",js("window.__zhiyouDiagnostics().version"));
+  awaitReady();assertEquals("3",js("window.__zhiyouDiagnostics().version"));
   assertEquals("true",js("typeof window.NativeFiles.saveFile === 'function'"));
   assertEquals("true",js("!!document.querySelector('#scene canvas') || !!document.querySelector('.scene-fallback')"));
-  js("document.querySelector('nav [data-action=archive]').click()");
+  js("document.querySelector('[data-action=assist]').click()");
+  js("document.querySelector('[data-action=archive]').click()");
+  js("document.querySelector('[data-action=assist]').click()");
+  js("document.querySelector('[data-action=assist-tools]').click()");
   js("document.querySelector('[data-action=read-culture]').click()");
   assertEquals("true",js("JSON.parse(localStorage.getItem('zhiyou-workshop-v2')).read.includes('culture')"));
   js("location.reload()");Thread.sleep(700);awaitReady();

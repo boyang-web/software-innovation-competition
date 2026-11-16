@@ -2,7 +2,7 @@ plugins { id 'com.android.application' }
 android {
  namespace 'cn.zhiyou.app'
  compileSdk 35
- defaultConfig { applicationId 'cn.zhiyou.app'; minSdk 26; targetSdk 35; versionCode 2; versionName '0.2.0'; testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner' }
+ defaultConfig { applicationId 'cn.zhiyou.app'; minSdk 26; targetSdk 35; versionCode 3; versionName '0.3.0'; testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner' }
  signingConfigs {
   demo {
    storeFile file(System.getenv('DEMO_KEYSTORE') ?: "${System.properties['user.home']}/.android/debug.keystore")

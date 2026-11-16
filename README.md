@@ -21,7 +21,7 @@ gradle -p android assembleRelease lintRelease
 - `src/doll-view.js`：将织纹算法生成的 Canvas 直接应用到原仓库 PegDoll 三维模型；管理渲染与资源释放。
 - `src/vendor/`：两仓库复用的核心代码，来源见 THIRD_PARTY.md。
 - `android/`：Java 原生 Activity + AndroidX WebViewAssetLoader，通过 HTTPS 本地资源域加载打包资产；禁用文件访问，无远端页面内嵌，无 JavaScript 原生桥。
-- `.github/workflows/android-release.yml`：测试、Web 构建、Android 构建及 lint、上传 APK；v 标签自动发布 GitHub Release。
+- `.github/workflows/android-release.yml`：测试、Web 构建、Android 构建及 lint、上传 APK；首次成功构建自动发布 v0.1.0 GitHub Release，后续构建上传 Actions 产物。
 
 ## Android 边界
 
@@ -33,4 +33,4 @@ Release 使用 Demo 签名。仓库 Secret `DEMO_KEYSTORE_BASE64` 可保存稳�
 
 ## 验证
 
-`npm test` 验证平纹邻接关系、错误定位、损坏存档恢复。`tests/mobile.mjs` 使用 Playwright 验证完整手机闭环、重载持久化、三维 Canvas 与窄屏溢出。Android CI 执行 assembleRelease 和 lintRelease。未将浏览器测试等同于真机测试。
+`npm test` 验证平纹邻接关系、错误定位、损坏存档恢复。安装 Google Chrome 并在另一终端运行 `npm run dev`，然后运行 `npm run test:e2e`。`tests/mobile.mjs` 使用 Playwright 验证完整手机闭环、重载持久化、三维 Canvas 与窄屏溢出。Android CI 执行 assembleRelease 和 lintRelease。未将浏览器测试等同于真机测试。

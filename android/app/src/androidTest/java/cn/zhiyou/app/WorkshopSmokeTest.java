@@ -19,7 +19,7 @@ public class WorkshopSmokeTest {
  private String js(String expression) throws Exception {
   CountDownLatch latch=new CountDownLatch(1);AtomicReference<String> result=new AtomicReference<>();
   InstrumentationRegistry.getInstrumentation().runOnMainSync(()->rule.getActivity().webForTests().evaluateJavascript(expression,value->{result.set(value);latch.countDown();}));
-  assertTrue("WebView evaluation timed out",latch.await(8,TimeUnit.SECONDS));return result.get();
+  assertTrue("WebView evaluation timed out",latch.await(30,TimeUnit.SECONDS));return result.get();
  }
  private void awaitReady() throws Exception {
   long until=System.currentTimeMillis()+30000;

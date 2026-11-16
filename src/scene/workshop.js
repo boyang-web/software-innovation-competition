@@ -27,7 +27,7 @@ export class Workshop {
   this.observer=new ResizeObserver(()=>this.resize());this.observer.observe(host);this.resize();
   this.visibility=()=>{if(document.hidden){cancelAnimationFrame(this.frame);this.frame=0;}else if(!this.frame){this.lastTime=0;this.tick(performance.now());}};document.addEventListener('visibilitychange',this.visibility);
   this.contextLost=e=>{e.preventDefault();host.dataset.context='lost';};this.contextRestored=()=>{host.dataset.context='';};r.domElement.addEventListener('webglcontextlost',this.contextLost);r.domElement.addEventListener('webglcontextrestored',this.contextRestored);
-  this.tick(performance.now());onReady(true);
+  this.frame=requestAnimationFrame(time=>this.tick(time));onReady(true);
  }
  material(color){return new T.MeshStandardMaterial({color,roughness:.85});}
  box(w,h,d,x,y,z,mat=this.wood,parent=this.scene){const mesh=new T.Mesh(new T.BoxGeometry(w,h,d),mat);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh;}
@@ -316,7 +316,7 @@ export class Workshop {
   if(this.shuttleTarget!==undefined&&this.drag?.target.id!=='shuttle')this.shuttle.position.x+=(this.shuttleTarget-this.shuttle.position.x)*.18;
   const dt=time-(this.beatStart||-1000);if(this.drag?.target.id!=='beater')this.beater.position.z=.72-(dt<600?Math.sin(dt/600*Math.PI)*.45:0);
   for(const t of this.targets)if(t.marker.visible){const k=1+Math.sin(time/450)*.12;t.marker.scale.setScalar(k);}
-  this.controls.update();this.renderer.render(this.scene,this.camera);this.viewRevision++;
+  this.controls.update();if(!this.viewRevision)console.info("[scene] first frame begin");this.renderer.render(this.scene,this.camera);if(!this.viewRevision)console.info("[scene] first frame complete");this.viewRevision++;
  }
  dispose(){this.disposed=true;if(this.failed)return;cancelAnimationFrame(this.frame);this.observer.disconnect();this.controls.dispose();document.removeEventListener('visibilitychange',this.visibility);for(const [event,key] of [['pointerdown','down'],['pointermove','move'],['pointerup','up'],['pointercancel','lost']])this.renderer.domElement.removeEventListener(event,this.handlers[key],true);this.renderer.domElement.removeEventListener('webglcontextlost',this.contextLost);this.renderer.domElement.removeEventListener('webglcontextrestored',this.contextRestored);const resources=new Set();this.scene.traverse(o=>{if(o.geometry)resources.add(o.geometry);for(const m of Array.isArray(o.material)?o.material:[o.material])if(m){resources.add(m);for(const t of Object.values(m))if(t?.isTexture)resources.add(t);}});resources.add(this.doll.woodTexture);resources.add(this.doll.woodBumpTexture);for(const resource of resources)resource.dispose();this.fabricTexture?.dispose();for(const t of this.textures)t.dispose();this.renderer.dispose();this.renderer.domElement.remove();}
 }

@@ -49,6 +49,7 @@ public class MainActivity extends Activity {
   });
   web.addJavascriptInterface(new DocumentExporter(),"NativeFiles");
   web.setWebChromeClient(new WebChromeClient(){
+   @Override public boolean onConsoleMessage(ConsoleMessage message){android.util.Log.i("ZhiyouWeb",message.message());return true;}
    @Override public boolean onJsConfirm(WebView view,String url,String message,JsResult result){
     new AlertDialog.Builder(MainActivity.this).setMessage(message)
       .setPositiveButton("确定",(d,w)->result.confirm()).setNegativeButton("取消",(d,w)->result.cancel())

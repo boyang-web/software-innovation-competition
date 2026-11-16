@@ -6,6 +6,7 @@ import {drawFabric,drawDraft} from './scene/fabric.js';
 import {Workshop} from './scene/workshop.js';
 import {askMentor} from './services/mentor.js';
 
+console.info('[boot] workshop modules loaded');
 let state=loadState();
 let noticeTimer,noticeShown='';
 let notice='',activeTool='direct',markColor='#e4b25d',mentorOpen=false,mentorReply='',mentorBusy=false,selectedRow=-1,storageOK=true,scene;
@@ -20,6 +21,7 @@ const allReview=()=>REVIEW.every(q=>state.review[q.id]===q.answer);
 const currentMission=()=>missionOf(state.run?.missionId||state.missionId);
 
 app.innerHTML=`<div class="app-shell scene-first"><header class="topbar"><button class="brand" data-action="village" aria-label="返回工坊全景">✳ <b>织游</b><span>山海工坊</span></button><div class="header-actions"><button class="pocket" data-action="journal" aria-label="打开学习手记">▥</button><button class="pocket" data-action="assist" aria-label="辅助操作与设置">⋯</button></div></header><div class="stage-shell"><div id="scene"></div><div id="scene-hud"></div><div id="object-labels" aria-hidden="true"></div><div class="camera-tools"><button data-action="camera-reset" aria-label="复位视角">⌖</button><button data-action="camera-top" aria-label="俯视织机">▦</button></div></div><div id="panel" class="panel scene-note"></div><div id="toast" role="status" aria-live="polite"></div></div><dialog id="inspector"><div id="inspector-content"></div></dialog><dialog id="workbook" aria-label="工坊手记"><button class="book-close" data-action="close-workbook" aria-label="合上手记">×</button><div id="workbook-content"></div></dialog>`;
+console.info('[boot] creating scene');
 scene=new Workshop(document.querySelector('#scene'),{onStation:p=>navigate(p),onTool:handleSceneTool,onMark:addMark,onHint:text=>{notice=text;render();}});
 let workbookMode=null;
 let openKnowledgeId=null;
@@ -221,3 +223,5 @@ document.querySelector('#workbook').addEventListener('cancel',()=>{workbookMode=
 if(['brief','review','journal','settings'].includes(state.page))openWorkbook();
 
 window.__zhiyouDollSurface=()=>scene.surfacePoint();
+
+console.info('[boot] scene UI and diagnostics ready');

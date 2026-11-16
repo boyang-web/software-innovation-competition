@@ -309,7 +309,7 @@ export class Workshop {
   }
   return null;
  }
- resize(){if(this.failed)return;const {clientWidth:w,clientHeight:h}=this.host;this.renderer.setSize(w,h);this.camera.aspect=w/Math.max(1,h);this.camera.updateProjectionMatrix();if(!this.drag){this.fitView(this.camera.position,this.controls.target,this.station);this.controls.update();}}
+ resize(){if(this.failed)return;this.dirtyUntil=performance.now()+1200;const {clientWidth:w,clientHeight:h}=this.host;this.renderer.setSize(w,h);this.camera.aspect=w/Math.max(1,h);this.camera.updateProjectionMatrix();if(!this.drag){this.fitView(this.camera.position,this.controls.target,this.station);this.controls.update();}}
  tick(time){if(this.disposed||document.hidden){this.frame=0;return;}this.frame=requestAnimationFrame(t=>this.tick(t));if(this.lastTime&&time-this.lastTime<(this.mobile?65:32))return;this.lastTime=time;this.controls.update();if(!this.drag&&!this.animatingCamera&&time>this.dirtyUntil)return;
   if(this.animatingCamera){ease(this.camera.position,this.goalEye,.12);ease(this.controls.target,this.goalTarget,.12);if(this.camera.position.distanceTo(this.goalEye)<.015)this.animatingCamera=false;}
   if(this.shuttleTarget!==undefined&&this.drag?.target.id!=='shuttle')this.shuttle.position.x+=(this.shuttleTarget-this.shuttle.position.x)*.18;

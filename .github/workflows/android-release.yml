@@ -71,17 +71,7 @@ jobs:
           emulator-boot-timeout: 300
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: |
-            adb logcat -c
-            if gradle -p android connectedDebugAndroidTest --no-daemon; then
-              echo 'Installed WebView test passed'
-            else
-              adb logcat -d > test-results/android-logcat.txt
-              adb shell dumpsys activity lastanr > test-results/android-last-anr.txt
-              tail -n 160 test-results/android-logcat.txt
-              cat test-results/android-last-anr.txt
-              exit 1
-            fi
+          script: bash scripts/android-smoke.sh
       - name: Prepare download
         run: |
           VERSION=$(node -p "require('./package.json').version")

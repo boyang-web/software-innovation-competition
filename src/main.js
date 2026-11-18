@@ -1,6 +1,7 @@
 import './style.css';
 import {MISSIONS,KNOWLEDGE,YARNS,REVIEW,missionOf,sourceOf,expectedShed} from './content/course.js';
 import {createRun,operate,inspect,coach,yarnOf} from './domain/loom.js';
+import {STUDIES,turnPeg,freshSampler,matchesSample} from './domain/sampler.js';
 import {loadState,saveState,newState} from './domain/store.js';
 import {drawFabric,drawDraft} from './scene/fabric.js';
 import {Workshop} from './scene/workshop.js';
@@ -29,7 +30,7 @@ let openKnowledgeId=null;
 function openWorkbook(mode='page'){
  workbookMode=mode;
  const dialog=document.querySelector('#workbook');
- document.querySelector('#workbook-content').innerHTML=mode==='assist'?`<div class="eyebrow">按需打开 / 备用操作</div><h2>工具辅助与学习服务</h2><p class="fine">主要操作直接在场景中完成。需要精确参数、无障碍按钮或设置时，在这里使用备用工具。</p>${btn('查看当前备用工具','assist-tools','secondary')}${btn('研学手册','archive','secondary')}${btn('学习档案','journal','secondary')}${btn('导师与数据设置','settings','secondary')}`:mode==='tools'?pageContent():mode==='save'?savePage():pageContent();
+ document.querySelector('#workbook-content').innerHTML=mode==='assist'?`<div class="eyebrow">按需打开 / 备用操作</div><h2>工具辅助与学习服务</h2><p class="fine">主要操作直接在场景中完成。需要精确参数、无障碍按钮或设置时，在这里使用备用工具。</p>${btn('查看当前备用工具','assist-tools','secondary')}${btn('去补纹架','sampler','secondary')}${btn('研学手册','archive','secondary')}${btn('学习档案','journal','secondary')}${btn('导师与数据设置','settings','secondary')}`:mode==='tools'?pageContent():mode==='save'?savePage():pageContent();
  if(!dialog.open)dialog.showModal();
  if(state.page==='journal')paintThumbnails();
  if(mode==='tools'&&state.page==='loom'&&state.run){const c=document.querySelector('#inline-draft');if(c)drawDraft(c,state.run);}
@@ -40,9 +41,13 @@ function navigate(page){
  if(page==='board'){state.page='village';workbookMode=null;document.querySelector('#workbook').close();scene.setStation('board');persist();render();return;}
  if(page==='loom'&&!state.run){state.missionId='first';page='brief';}
  if(page==='doll'&&!state.run?.submitted){notice='先在织造台完成并验收一块样布，再来进行木偶创作。';page=state.run?'loom':'brief';}
- state.page=page;activeTool='direct';scene.setTool('direct');scene.setStation(page==='brief'?'board':['loom','doll','archive'].includes(page)?page:'village');persist();render(true);
+ state.page=page;activeTool='direct';scene.setTool('direct');scene.setStation(page==='brief'?'board':['loom','doll','archive','sampler'].includes(page)?page:'village');persist();render(true);
  if(['brief','journal','settings','review'].includes(page))openWorkbook();
  else {workbookMode=null;document.querySelector('#workbook').close();}
+}
+function haptic(strong=false){
+ if(window.NativeTouch)window.NativeTouch.pulse(strong);
+ else navigator.vibrate?.(strong?12:6);
 }
 function act(action){
  if(!state.run)return;
@@ -50,9 +55,10 @@ function act(action){
  if(action.type==='SUBMIT'&&!result.error){state.page='review';state.review={};mentorOpen=false;scene.setStation('village');}
  persist();render();
  if(action.type==='SUBMIT'&&!result.error)openWorkbook();
- if(action.type==='BEAT'&&!result.error&&navigator.vibrate)navigator.vibrate(12);
+ if(!result.error&&['BEAT','DRESS','SHED'].includes(action.type))haptic(action.type==='BEAT');
 }
 function render(resetScroll=false){
+ document.querySelector('[data-action=camera-top]').hidden=state.page!=='loom';
  const panel=document.querySelector('#panel');
  panel.innerHTML=sceneNote();
  document.querySelector('#scene-hud').innerHTML=hud();
@@ -69,25 +75,29 @@ function sceneNote(){
   if(run.submitted){title='样布已验收';hint='回到全景，点木偶台继续创作。';}
   else if(run.rows.length===m.rows&&!run.pending){title='样布织满了';hint='点布面检查；有错可回转拆纬，完成后摇铃交布。';}
   else if(run.phase==='warp'){title=run.warpCount<12?`整经 ${run.warpCount} / 12 根`:'经线已齐';hint=run.warpCount<12?'点选台边纱筒，按住线头向后拉；每次绕经四根。':'扣紧右侧经轴，上机后就能提综。';}
-  else if(run.pending){title=`第 ${run.rows.length+1} 纬 · 打纬`;hint='按住横向打纬杆，向自己这一侧拉下。';}
+  else if(run.pending){title=`第 ${run.rows.length+1} 纬 · 打纬`;hint='按住打纬杆向下拉，观察松、匀、紧的变化，松手织入。';}
   else if(run.shed!==null){title=`第 ${run.rows.length+1} 纬 · 投梭`;hint=`按住梭子，拖向${run.rows.length%2?'左':'右'}侧穿过梭口。`;}
   else{title=`第 ${run.rows.length+1} 纬 · 提综`;hint='点织机上方的综杆，抬起一组经线。';}
   return `<small>委托 ${m.number} · ${m.title}</small><b>${title}</b><p>${hint}</p>`;
  }
  if(state.page==='doll')return `<small>木偶创作台 · ${state.draft.marks.length} 笔装饰</small><b>${['brush','daisy','leaf','star'].includes(activeTool)?'工具已拿起，直接在木偶上落笔':'像坐在工作台前一样创作'}</b><p>点选木坯、样片、颜料与画笔；点桌边手记签名收藏。拖空白处可环绕。</p>`;
+ if(state.page==='sampler'){
+  const model=state.sampler,study=STUDIES[model.level],solved=matchesSample(model);
+  return `<small>补纹架 · 第 ${model.level+1} / 3 块</small><b>${solved?'纹路接上了':study.name}</b><p>${solved?study.lesson+' 转动下方卷轴换布。':study.clue}</p>`;
+ }
  if(state.page==='archive')return `<small>资料台 · 已研读 ${state.read.length} / 4 本</small><b>伸手翻一本书。</b><p>点桌上的书，阅读文化、工具与交织知识；读完合上，回工坊接委托。</p>`;
  if(scene.station==='board')return `<small>工坊委托板</small><b>翻开一份纸上的委托。</b><p>点亮的纸张可以接取；完成当前任务后，下一份委托会解锁。</p>`;
- return `<small>山海工坊 · ${Object.keys(state.completed).length} 枚研习章</small><b>点房间里的物件开始。</b><p>桌上翻书，委托板接任务，织机旁动手；拖空白处环绕、双指缩放。</p>`;
+ return `<small>山海工坊 · ${Object.keys(state.completed).length} 枚研习章</small><b>点房间里的物件开始。</b><p>先试试墙上的补纹架，接好一块布。想织自己的样布，就去资料台翻书、到委托板接单。</p>`;
 }
 
 function hud(){
  const run=state.run,m=currentMission();
- return `<div class="hud-top"><span class="location">${state.page==='loom'?'织造台':state.page==='doll'?'木偶台':state.page==='archive'?'资料台':'山海工坊'}</span>${state.page==='loom'&&run?chip(`${run.rows.length} / ${m.rows} 纬`,run.submitted):chip('轻触物件 · 拖动工具')}</div>`;
+ return `<div class="hud-top"><span class="location">${state.page==='loom'?'织造台':state.page==='doll'?'木偶台':state.page==='archive'?'资料台':state.page==='sampler'?'补纹架':'山海工坊'}</span>${state.page==='loom'&&run?chip(`${run.rows.length} / ${m.rows} 纬`,run.submitted):chip('轻触物件 · 拖动工具')}</div>`;
 }
 
 function pageContent(){
  switch(state.page){
- case 'village':return village();case 'brief':return brief();case 'loom':return loom();case 'doll':return doll();case 'archive':return archive();case 'review':return review();case 'journal':return journal();case 'settings':return settings();default:state.page='village';return village();
+ case 'sampler':return '<h2>'+STUDIES[state.sampler.level].name+'</h2><p>'+STUDIES[state.sampler.level].clue+'</p>'+state.sampler.phases.map((p,i)=>btn('第 '+(i+1)+' 纬 · 原样 '+(STUDIES[state.sampler.level].phases[i]+1)+' 综 / 当前 '+(p+1)+' 综','peg-'+i,'secondary',matchesSample(state.sampler))).join('')+btn('卷到下一块','next-sample','primary',!matchesSample(state.sampler));case 'village':return village();case 'brief':return brief();case 'loom':return loom();case 'doll':return doll();case 'archive':return archive();case 'review':return review();case 'journal':return journal();case 'settings':return settings();default:state.page='village';return village();
  }
 }
 function village(){return `<div class="eyebrow">LEARN THROUGH MAKING / 实景工艺课堂</div><div class="heading-row"><h1>走进工坊，<br>亲手织出答案。</h1><span class="round-seal">纺<br>染织绣</span></div><p class="intro">在织机上观察因果，在失误中理解结构，再把你织出的布变成自己的作品。</p>${state.run?`<div class="resume"><div><small>上次做到这里</small><b>${missionOf(state.run.missionId).title} · ${state.run.rows.length} 纬</b></div>${btn('继续 →',state.run.submitted?'doll':'loom','small-primary')}</div>`:''}<div class="section-title"><h2>四段研习 · 一条连续的旅程</h2><span>约 35 分钟</span></div><div class="mission-list">${MISSIONS.map(m=>`<button class="mission-card ${state.completed[m.id]?'passed':''}" data-action="brief-${m.id}" ${canEnter(m)?'':'disabled'}><span class="mission-number">${state.completed[m.id]?'✓':m.number}</span><div><small>${m.subtitle}</small><h3>${m.title}</h3><p>${m.skills.join(' · ')}</p></div><span>${canEnter(m)?'↗':'待解锁'}</span></button>`).join('')}</div><div class="paper-note"><b>从文化语境出发</b><p>以黎族纺染织绣资料为入口，练习通用织造原理。工坊、木偶和几何装饰属于教学设计与自由创作。</p>${btn('先认识这门手艺 →','archive','text-button')}</div>`;}
@@ -107,11 +117,12 @@ function doll(){
 }
 function archive(){return `<div class="eyebrow">FIELD NOTES / 可追溯研学手册</div><h1>先认识手艺，<br>再理解工具。</h1><div class="archive-progress">已研读 ${state.read.length} / ${KNOWLEDGE.length} 条资料</div>${KNOWLEDGE.map(k=>`<article class="knowledge-card"><div class="section-title tight">${chip(k.tag)}<span>${state.read.includes(k.id)?'✓ 已研读':''}</span></div><h2>${k.title}</h2><p>${k.text}</p><blockquote>${k.takeaway}</blockquote>${sourceLink(k.source)}${btn(state.read.includes(k.id)?'已记入手册':'读完，记入我的手册',`read-${k.id}`,state.read.includes(k.id)?'text-button':'secondary')}</article>`).join('')}<section class="paper-note"><b>模型范围</b><p>当前织机用于解释提综、投梭、打纬与交织结构；张力和密度采用教学近似。尚未仿真真实材料力学、身体张力控制、复杂提花或完整纺染工序。</p></section>${btn(state.run?'回到当前制作':'接受第一份委托',state.run?'loom':'brief-first')}`;}
 function review(){const run=state.run;if(!run?.submitted)return `<h1>还没有验收的样布</h1>${btn('回到织造台','loom')}`;const report=inspect(run);return `<div class="eyebrow">REFLECT / 验收不是终点</div><h1>能完成，也要<br>能说清为什么。</h1><div class="report-grid"><div><b>${report.structure}%</b><small>结构符合度</small></div><div><b>${report.quality}</b><small>样布质量</small></div><div><b>${run.hints}</b><small>求助次数</small></div><div><b>${run.undoCount}</b><small>拆纬修复</small></div></div>${REVIEW.map(q=>`<section class="review-question"><h3>${q.question}</h3>${q.options.map((o,i)=>btn(o,`review-${q.id}-${i}`,`answer ${state.review[q.id]===i?'selected':''}`)).join('')}${state.review[q.id]!==undefined?`<p class="answer-feedback ${state.review[q.id]===q.answer?'correct':''}">${state.review[q.id]===q.answer?'✓ '+q.reason:'再回忆一下实际的操作与研学资料。'}</p>`:''}</section>`).join('')}${allReview()?`<section class="paper-note success"><b>解释验证通过 · 研习章已记入档案</b><p>下一份委托会改变故障条件或起始规则，继续检验你能否迁移所学。</p></section>${btn('带着样布去木偶台 →','doll')}`:''}${btn('查看完整制作记录','inspect','secondary')}`;}
-function journal(){return `<div class="eyebrow">LEARNING PORTFOLIO / 学习证据</div><div class="section-title"><h1>作品会留下，<br>过程也会。</h1>${btn('设置','settings','outline-small')}</div><div class="report-grid"><div><b>${Object.keys(state.completed).length}</b><small>通过委托</small></div><div><b>${state.works.length}</b><small>收藏作品</small></div><div><b>${state.read.length}</b><small>研读资料</small></div><div><b>${state.stats.runs}</b><small>制作尝试</small></div></div><h2>能力进度</h2><div class="skill-list">${MISSIONS.map(m=>`<div><span>${m.title}</span><b>${state.completed[m.id]?'已验证 ✓':'待实训'}</b></div>`).join('')}</div><h2>我的作品</h2>${state.works.length?state.works.map(w=>`<article class="saved-work"><canvas class="work-thumbnail" width="160" height="160" data-work="${w.id}" aria-label="作品样布"></canvas><div><small>${esc(w.created)}</small><h3>${esc(w.name)}</h3><p>${missionOf(w.run.missionId).title} / ${w.run.rows.length} 纬</p>${btn('在三维台重开',`open-${w.id}`,'text-button')}${btn('导出配方',`export-${w.id}`,'text-button')}</div></article>`).join(''):'<div class="empty-state">完成一份委托，在木偶台保存你的第一件作品。作品包含实际纬线、工具参数、装饰位置和过程事件。</div>'}${btn('回工坊接下一份委托 →','village')}`;}
+function journal(){return `<div class="eyebrow">LEARNING PORTFOLIO / 学习证据</div><div class="section-title"><h1>作品会留下，<br>过程也会。</h1>${btn('设置','settings','outline-small')}</div><div class="report-grid"><div><b>${Object.keys(state.completed).length}</b><small>通过委托</small></div><div><b>${state.works.length}</b><small>收藏作品</small></div><div><b>${state.read.length}</b><small>研读资料</small></div><div><b>${state.stats.runs}</b><small>制作尝试</small></div></div><h2>能力进度</h2><p>补纹架 · 已接好 ${state.sampler.earned.length} / 3 块样布</p><div class="skill-list">${MISSIONS.map(m=>`<div><span>${m.title}</span><b>${state.completed[m.id]?'已验证 ✓':'待实训'}</b></div>`).join('')}</div><h2>我的作品</h2>${state.works.length?state.works.map(w=>`<article class="saved-work"><canvas class="work-thumbnail" width="160" height="160" data-work="${w.id}" aria-label="作品样布"></canvas><div><small>${esc(w.created)}</small><h3>${esc(w.name)}</h3><p>${missionOf(w.run.missionId).title} / ${w.run.rows.length} 纬</p>${btn('在三维台重开',`open-${w.id}`,'text-button')}${btn('导出配方',`export-${w.id}`,'text-button')}</div></article>`).join(''):'<div class="empty-state">完成一份委托，在木偶台保存你的第一件作品。作品包含实际纬线、工具参数、装饰位置和过程事件。</div>'}${btn('回工坊接下一份委托 →','village')}`;}
 function settings(){return `<div class="eyebrow">SETTINGS / 学习服务</div><h1>导师与本机数据</h1><section class="knowledge-card"><h2>大模型导师服务</h2><p>默认使用离线工艺诊断。连接部署好的导师服务后，可把任务、最近操作和知识来源发给模型，获得自然语言讲解。模型建议不会自动修改你的作品。</p><label for="endpoint">服务地址（HTTPS，不填写 API Key）</label><input id="endpoint" type="url" placeholder="https://your-service.example" value="${esc(state.endpoint)}">${btn('保存服务地址','save-endpoint')}<p class="fine">模型密钥保存在你部署的 Node 服务环境变量中。只有点击「问导师」才会发送当前制作状态；不会发送全部收藏作品。</p></section><section class="knowledge-card"><h2>设备与数据</h2><p>离线学习、三维制作与本机存档无需账号。作品可通过 Android 文件选择器导出，卸载应用会清除本机存档。</p>${btn('导出学习档案备份','export-backup','secondary')}${btn('清除本机记录','reset','danger-button')}</section>${btn('返回我的档案','journal','secondary')}`;}
 function showInspector(){const run=state.run;if(!run?.rows.length){notice='先织入一纬，再观察布面。';render();return;}const m=missionOf(run.missionId),report=inspect(run),revealed=m.id!=='transfer'||run.submitted;const dialog=document.querySelector('#inspector');document.querySelector('#inspector-content').innerHTML=`<div class="section-title tight"><h2>你织出的布 · ${run.rows.length} 纬</h2>${btn('关闭','close-inspector','outline-small')}</div><p class="fine">颜色来自你选择的纱线，上下关系来自实际提综记录。点击某一纬定位观察。</p><canvas id="fabric-large" width="480" height="480" aria-label="真实样布放大预览"></canvas><div class="row-picker">${run.rows.map((_,i)=>btn(`${i+1}`,`select-row-${i}`,selectedRow===i?'selected':'')).join('')}</div><canvas id="draft-large" width="480" height="320" aria-label="经纬交织图"></canvas>${ledger(run)}${revealed?`<div class="diagnosis"><h3>${report.issues.length?'发现的问题':'当前织物没有检测到结构缺陷'}</h3>${report.issues.map(i=>`<p>${i.text}</p>`).join('')}</div>`:'<p class="independent-banner">独立挑战期间只呈现实际结构，不标注正确答案。</p>'}${btn('导出当前样布 PNG','export-fabric','secondary')}`;const preview=drawFabric(run,{size:480,highlight:selectedRow});document.querySelector('#fabric-large').getContext('2d').drawImage(preview,0,0);drawDraft(document.querySelector('#draft-large'),run,selectedRow);if(!dialog.open)dialog.showModal();}
 function paintThumbnails(){for(const canvas of document.querySelectorAll('[data-work]')){const w=state.works.find(w=>w.id===canvas.dataset.work);if(w)canvas.getContext('2d').drawImage(drawFabric(w.run,{size:160}),0,0);}}
 function handleSceneTool(tool,value){
+ if(tool==='op-beat'&&Number.isFinite(value)){act({type:'BEAT',value});return;}
  if(tool.startsWith('commission-')){handleAction('brief-'+tool.slice(11));return;}
  if(tool.startsWith('book-')){openKnowledge(tool.slice(5));return;}
  if(tool.startsWith('yarn-')){if(state.run)act({type:'YARN',axis:state.run.phase==='warp'?'warp':'weft',value:tool.slice(5)});return;}
@@ -131,7 +142,7 @@ function openKnowledge(id){
  document.querySelector('#inspector').showModal();
 }
 
-function addMark(uv){if(!state.run?.submitted||!['brush','daisy','leaf','star','blossom'].includes(activeTool))return;state.draft.marks.push({...uv,kind:activeTool,color:markColor});state.draft.marks=state.draft.marks.slice(-100);persist();scene.update(state);render();}
+function addMark(uv){if(!state.run?.submitted||!['brush','daisy','leaf','star','blossom'].includes(activeTool))return;state.draft.marks.push({...uv,kind:activeTool,color:markColor});state.draft.marks=state.draft.marks.slice(-100);persist();scene.update(state);const note=document.querySelector('#panel small');if(note)note.textContent='木偶创作台 · '+state.draft.marks.length+' 笔装饰';}
 async function exportFile(name,mime,textOrData){
  const data=mime==='image/png'?textOrData.split(',')[1]:btoa(unescape(encodeURIComponent(textOrData)));
  if(window.NativeFiles?.saveFile){window.NativeFiles.saveFile(name,mime,data);notice='请选择保存位置。';render();return;}
@@ -139,11 +150,20 @@ async function exportFile(name,mime,textOrData){
 }
 function recipe(work){return JSON.stringify({format:'zhiyou-workshop-recipe',version:2,...work,sources:KNOWLEDGE.map(k=>({id:k.id,source:sourceOf(k.source)})),scope:'通用织造教学与个人创作，非传统纹样复原'},null,2);}
 async function handleAction(a){
+ if(a.startsWith('peg-')&&state.page==='sampler'){
+  state.sampler=turnPeg(state.sampler,Number(a.slice(4)));haptic(matchesSample(state.sampler));
+  notice=matchesSample(state.sampler)?'四纬都接上了，转卷轴试下一块。':'';
+  persist();render();return;
+ }
+ if(a==='next-sample'&&state.page==='sampler'&&matchesSample(state.sampler)){
+  state.sampler=freshSampler((state.sampler.level+1)%STUDIES.length,state.sampler.earned);
+  notice='';persist();render();return;
+ }
  if(a==='assist'){openWorkbook('assist');return;}
  if(a==='assist-tools'){openWorkbook('tools');return;}
  if(a==='close-workbook'){workbookMode=null;document.querySelector('#workbook').close();return;}
 
- if(['village','loom','doll','archive','journal','settings','review'].includes(a)){navigate(a);if(a==='journal')paintThumbnails();return;}
+ if(['village','loom','doll','archive','sampler','journal','settings','review'].includes(a)){navigate(a);if(a==='journal')paintThumbnails();return;}
  if(a.startsWith('brief-')){state.missionId=a.slice(6);if(!canEnter(missionOf(state.missionId)))return;navigate('brief');return;}
  if(a==='begin'){
   const m=missionOf(state.missionId);if(!canEnter(m))return;
@@ -162,7 +182,7 @@ async function handleAction(a){
  if(a==='close-inspector'){document.querySelector('#inspector').close();return;}
  if(a.startsWith('select-row-')){selectedRow=Number(a.slice(11));showInspector();return;}
  if(a==='camera-top'){scene.topView();return;}
- if(a==='camera-reset'){scene.setStation(['doll','archive'].includes(state.page)?state.page:state.page==='loom'?'loom':'village');return;}
+ if(a==='camera-reset'){scene.setStation(scene.station);return;}
  if(a==='mentor-toggle'){mentorOpen=!mentorOpen;render();return;}
  if(a.startsWith('hint-')){mentorReply='';act({type:'HINT',level:Number(a.slice(5))});return;}
  if(a==='ask-ai'){
@@ -201,11 +221,16 @@ app.addEventListener('change',e=>{
 });
 window.zhiyouBack=()=>{const workbook=document.querySelector('#workbook');if(workbook.open){workbookMode=null;workbook.close();return true;}const modal=document.querySelector('#inspector');if(modal.open){modal.close();return true;}if(state.page==='village')return false;navigate('village');return true;};
 window.addEventListener('pagehide',persist);document.addEventListener('visibilitychange',()=>{if(document.hidden)persist();});
-window.__zhiyouDiagnostics=()=>({version:3,cameraReady:!scene.animatingCamera,page:state.page,webgl:!scene.failed,phase:state.run?.phase,rows:state.run?.rows.length||0,savedWorks:state.works.length,completed:Object.keys(state.completed).length});
-scene.setStation(['loom','doll','archive'].includes(state.page)?state.page:'village',true);render();if(state.page==='journal')paintThumbnails();
+window.__zhiyouDiagnostics=()=>({version:4,cameraReady:!scene.animatingCamera,page:state.page,webgl:!scene.failed,phase:state.run?.phase,rows:state.run?.rows.length||0,savedWorks:state.works.length,completed:Object.keys(state.completed).length});
+scene.setStation(['loom','doll','archive','sampler'].includes(state.page)?state.page:'village',true);render();if(state.page==='journal')paintThumbnails();
 
 // Read-only scene projection for accessibility tooling and real pointer tests.
 window.__zhiyouSceneTargets=()=>scene.targetPoints();
+document.querySelector('#object-labels').addEventListener('click',e=>{
+ const id=e.target.closest('.place-label')?.dataset.objectLabel;
+ if(!id||scene.animatingCamera||!scene.targets.some(t=>t.id===id&&t.enabled))return;
+ if(id.startsWith('station-'))navigate(id.slice(8));else handleSceneTool(id);
+});
 let labelFrame=0,labelTime=0,lastViewRevision=-1,labelSignature='';
 function positionLabels(time=0){
  if(time-labelTime<60){labelFrame=requestAnimationFrame(positionLabels);return;}labelTime=time;
@@ -213,7 +238,7 @@ function positionLabels(time=0){
  const root=document.querySelector('#object-labels'),rect=document.querySelector('.stage-shell').getBoundingClientRect();
  const points=scene.targetPoints().filter(p=>p.visible&&(p.primary||state.page==='village'||state.page==='archive'));
  const signature=points.map(p=>p.id+':'+p.primary).join(',');
- if(signature!==labelSignature){root.innerHTML=points.map(p=>`<span class="object-label ${p.primary?'primary-label':''}" data-object-label="${p.id}">${esc(p.label)}</span>`).join('');labelSignature=signature;}
+ if(signature!==labelSignature){root.innerHTML=points.map(p=>`<span class="object-label ${/^(station-|commission-|book-)/.test(p.id)?'place-label':''} ${p.primary?'primary-label':''}" data-object-label="${p.id}">${esc(p.label)}</span>`).join('');labelSignature=signature;}
  for(const p of points){const element=root.querySelector(`[data-object-label="${p.id}"]`);if(element){element.style.left=Math.round(p.x-rect.left)+'px';element.style.top=Math.round(p.y-rect.top-22)+'px';}}
 
  labelFrame=requestAnimationFrame(positionLabels);

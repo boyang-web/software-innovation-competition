@@ -8,3 +8,5 @@
 - AndroidX WebKit：Apache-2.0。
 
 学习知识参考：https://www.britannica.com/technology/plain-weave 。课程为团队编写的基础织造解释，不宣称特定文化的专属归属，不包含外部图像、字体或视频。
+
+窗景插画位于 src/assets/hills.jpg，由内置 ImageGen 生成，作为原创游戏场景素材。提示词为 “Wide panoramic landscape illustration for the view through an old textile atelier window in a tactile miniature game. Lush green mountains of southern Hainan, banana leaves at the edges, layered teal hills, a pale gold winding stream and tiny faraway tiled roofs. Warm clear morning, gouache and fine woodcut grain on paper, strongly separated silhouettes, deep indigo forest, ochre sun. Full-bleed horizontal composition. Landscape only, no window frame, lettering, border or people.” 场景布幡的装饰几何图案为当代设计。

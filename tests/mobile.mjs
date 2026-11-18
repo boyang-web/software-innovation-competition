@@ -24,12 +24,17 @@ async function start(id){await home();await touch('station-board');await touch('
 async function dress(){for(let i=0;i<3;i++)await drag('warp-thread',0,-80);assert.equal((await saved()).run.warpCount,12);await touch('dress');}
 async function row(index,shed,color){if(color)await touch('yarn-'+color);await touch('shed-'+shed);await drag('shuttle',index%2?-85:85,0);await drag('beater',0,75);}
 async function review(){for(const a of ['review-structure-0','review-culture-1','review-transfer-1'])await click(a);}
-async function shot(name){await page.waitForTimeout(400);await page.screenshot({path:`test-results/v3-${name}.png`});}
+async function shot(name){await page.waitForTimeout(400);await page.screenshot({path:`test-results/v4-${name}.png`});}
 try{
  await page.goto(process.env.TEST_URL||'http://127.0.0.1:5173');await page.waitForFunction(()=>window.__zhiyouSceneTargets&&window.__zhiyouDiagnostics?.().webgl);
  assert.equal(await page.locator('nav').count(),0,'main scene should not have a tab menu');
  assert.ok(await page.getByRole('button').filter({visible:true}).count()<=5,'only minimal camera and pocket controls remain');
  await shot('village');
+ await touch('station-sampler');await point('peg-1');await shot('sampler');
+ await touch('peg-0');assert.deepEqual((await saved()).sampler.phases,[1,0,0,1]);await touch('peg-0');await touch('peg-1');
+ await touch('next-sample');await touch('peg-0');await page.reload();await page.waitForFunction(()=>window.__zhiyouSceneTargets);
+ await touch('peg-3');await touch('next-sample');await touch('peg-2');await touch('peg-2');assert.deepEqual((await saved()).sampler.earned,[0,1,2]);
+ await home();
  await touch('station-archive');await touch('book-culture');await click('read-culture');await touch('book-warp');await click('read-warp');
  await start('first');await touch('yarn-indigo');
  // A tap is not a drag, and dragging empty space must not operate the loom.
@@ -56,4 +61,4 @@ try{
  for(const width of [320,390,768]){await page.setViewportSize({width,height:844});await home();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`overflow ${width}`);await touch('station-loom');await point('inspect');}
  await click('journal');const downloadPromise=page.waitForEvent('download');await page.locator('[data-action^="export-"]').filter({visible:true}).first().click();await (await downloadPromise).saveAs('test-results/exported-recipe.json');
  assert.deepEqual(errors,[]);console.log('PASS: all 4 missions via physical objects; drag-only winding/shuttle/beater; wrong-direction rejection; fault repair; in-scene material/tool selection and painting; reload/export; no main tab menu; responsive.');
-}catch(error){await page.screenshot({path:'test-results/v3-failure.png'});console.error('Scene diagnostics:',await page.evaluate(()=>({state:window.__zhiyouDiagnostics?.(),targets:window.__zhiyouSceneTargets?.()})));throw error;}finally{await browser.close();}
+}catch(error){await page.screenshot({path:'test-results/v4-failure.png'});console.error('Scene diagnostics:',await page.evaluate(()=>({state:window.__zhiyouDiagnostics?.(),targets:window.__zhiyouSceneTargets?.()})));throw error;}finally{await browser.close();}

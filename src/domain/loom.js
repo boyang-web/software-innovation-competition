@@ -61,7 +61,7 @@ export function operate(run,action){
   if(action.direction!==(next.rows.length%2===0?'right':'left'))return reject('梭子在另一侧，请向正确方向投梭。');
   next.pending=makeRow(next,next.shed);notice='纬线已穿过梭口，拉动打纬杆或点击打纬。';break;
  case 'BEAT':
-  if(!next.pending)return reject('先提综并投梭，再打纬。');next.pending.beat=next.beat;next.rows.push(next.pending);next.pending=null;next.shed=null;notice=`第 ${next.rows.length} 纬已织入布面。`;break;
+  if(!next.pending)return reject('先提综并投梭，再打纬。');if(action.value!==undefined){if(!Number.isFinite(action.value))return reject('打纬力度无效');next.beat=Math.max(0,Math.min(100,Math.round(action.value)));}next.pending.beat=next.beat;next.rows.push(next.pending);next.pending=null;next.shed=null;notice=`第 ${next.rows.length} 纬已织入布面。`;break;
  case 'UNDO':
   if(next.pending){next.pending=null;next.shed=null;notice='撤回尚未打紧的纬线。';}
   else if(next.rows.length){next.rows.pop();next.shed=null;notice='已拆回一纬。重新检查综组、色序和密度。';}

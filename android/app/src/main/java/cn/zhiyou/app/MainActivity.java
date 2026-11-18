@@ -47,6 +47,7 @@ public class MainActivity extends Activity {
     return true;
    }
   });
+  web.addJavascriptInterface(new TouchFeedback(),"NativeTouch");
   web.addJavascriptInterface(new DocumentExporter(),"NativeFiles");
   web.setWebChromeClient(new WebChromeClient(){
    @Override public boolean onConsoleMessage(ConsoleMessage message){android.util.Log.i("ZhiyouWeb",message.message());return true;}
@@ -57,6 +58,13 @@ public class MainActivity extends Activity {
    }
   });
   web.loadUrl("https://appassets.androidplatform.net/assets/www/index.html");
+ }
+ public class TouchFeedback {
+  @JavascriptInterface public void pulse(boolean strong){
+   runOnUiThread(()->{
+    if(web.hasWindowFocus())web.performHapticFeedback(strong?android.view.HapticFeedbackConstants.VIRTUAL_KEY:android.view.HapticFeedbackConstants.CLOCK_TICK);
+   });
+  }
  }
  public class DocumentExporter {
   @JavascriptInterface public void saveFile(String name,String mime,String payload){
@@ -90,6 +98,6 @@ public class MainActivity extends Activity {
  }
  @Override protected void onPause(){web.evaluateJavascript("window.dispatchEvent(new Event('pagehide'))",null);web.onPause();web.pauseTimers();super.onPause();}
  @Override protected void onResume(){super.onResume();if(web!=null){web.onResume();web.resumeTimers();}}
- @Override protected void onDestroy(){web.removeJavascriptInterface("NativeFiles");web.destroy();pendingExport=null;super.onDestroy();}
+ @Override protected void onDestroy(){web.removeJavascriptInterface("NativeTouch");web.removeJavascriptInterface("NativeFiles");web.destroy();pendingExport=null;super.onDestroy();}
  WebView webForTests(){return web;}
 }

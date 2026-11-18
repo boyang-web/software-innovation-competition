@@ -27,7 +27,7 @@ public class WorkshopSmokeTest {
   fail("Bundled workshop did not initialize in Android WebView");
  }
  @Test public void offlineAssetsNativeExportAndProgressSurviveReload() throws Exception {
-  awaitReady();assertEquals("3",js("window.__zhiyouDiagnostics().version"));
+  awaitReady();assertEquals("4",js("window.__zhiyouDiagnostics().version"));
   assertEquals("true",js("typeof window.NativeFiles.saveFile === 'function'"));
   assertEquals("true",js("!!document.querySelector('#scene canvas') || !!document.querySelector('.scene-fallback')"));
   js("document.querySelector('[data-action=assist]').click()");
@@ -36,8 +36,12 @@ public class WorkshopSmokeTest {
   js("document.querySelector('[data-action=assist-tools]').click()");
   js("document.querySelector('[data-action=read-culture]').click()");
   assertEquals("true",js("JSON.parse(localStorage.getItem('zhiyou-workshop-v2')).read.includes('culture')"));
+  js("document.querySelector('[data-action=close-workbook]').click();document.querySelector('[data-action=assist]').click();document.querySelector('[data-action=sampler]').click()");
+  js("document.querySelector('[data-action=assist]').click();document.querySelector('[data-action=assist-tools]').click();document.querySelector('[data-action=peg-1]').click()");
+  assertEquals("true",js("JSON.parse(localStorage.getItem('zhiyou-workshop-v2')).sampler.earned.includes(0)"));
   js("location.reload()");Thread.sleep(700);awaitReady();
   assertEquals("true",js("JSON.parse(localStorage.getItem('zhiyou-workshop-v2')).read.includes('culture')"));
+  assertEquals("true",js("JSON.parse(localStorage.getItem('zhiyou-workshop-v2')).sampler.earned.includes(0)"));
   AtomicReference<Boolean> fileAccess=new AtomicReference<>();
   InstrumentationRegistry.getInstrumentation().runOnMainSync(()->fileAccess.set(rule.getActivity().webForTests().getSettings().getAllowFileAccess()));
   assertFalse("File access must stay disabled",fileAccess.get());

@@ -10,3 +10,10 @@
 
 /* Spatial labels keep their DOM nodes; avoid expensive per-label blur on mobile WebView. */
 .object-label{backdrop-filter:none;background:#f5f0e5ed}.scene-first .scene-note{backdrop-filter:none;background:#f5f0e5f5}
+.tool-readout{position:absolute;z-index:2;transform:translate(-50%,-100%);padding:5px 10px;background:#263f3c;color:#fff0c9;border:1px solid #e1c18c;border-radius:24px;font-size:12px;font-weight:600;white-space:nowrap;pointer-events:none}
+.scene-note small{color:#866039;font-size:11px}.scene-note p{color:#495b50;font-size:12px}.scene-note b{color:#273d37;font-size:17px}
+.scene-first .scene-note{border-left:4px solid #ad6e43;box-shadow:0 4px 20px #41332229}
+.object-label{background:#fcf2df;color:#283f3d;font-size:11px;border-color:#e4d2af}.object-label.primary-label{background:#285449;color:#fff3ce;border-color:#e1c985}
+.camera-tools [hidden]{display:none}
+
+.place-label{pointer-events:auto;cursor:pointer;touch-action:manipulation}

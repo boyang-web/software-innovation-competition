@@ -1,32 +1,37 @@
 import * as T from 'three';
+import {dressAtelier,textileMap} from './atelier.js';
+import {buildSampler} from './sampler.js';
+import {matchesSample} from '../domain/sampler.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {PegDoll} from '../vendor/doll.js';
 import {PaintSurface} from '../vendor/paint.js';
-import {drawFabric} from './fabric.js';
+import {drawFabric,clothPoint} from './fabric.js';
 import {warpColor,yarnOf,THREADS} from '../domain/loom.js';
 import {missionOf,YARNS} from '../content/course.js';
-import {resolveGesture} from './gestures.js';
+import {resolveGesture,packingForce} from './gestures.js';
 
-const POSITIONS={village:{eye:[13,13,17],target:[0,.8,.2]},board:{eye:[2.7,3.2,7.4],target:[-.5,1.5,2.8]},loom:{eye:[2.2,5.3,7.6],target:[-.5,1.2,.35]},doll:{eye:[4.4,3.3,4.3],target:[2.45,1.55,.1]},archive:{eye:[-4.3,2.8,4.8],target:[-2.8,1.3,-.9]},top:{eye:[-.7,6.6,.35],target:[-.7,1,.3]}};
+const POSITIONS={sampler:{eye:[-2.97,2.35,1.5],target:[-2.97,2.22,-2.8]},village:{eye:[6.6,8.5,15.2],target:[0,1.3,0]},board:{eye:[2.7,3.2,7.4],target:[-.5,1.5,2.8]},loom:{eye:[.75,5.4,6],target:[-.60,1.45,.40]},doll:{eye:[4.4,3.3,4.3],target:[2.45,1.55,.1]},archive:{eye:[-4.3,2.8,4.8],target:[-2.8,1.3,-.9]},top:{eye:[-.7,6.6,.35],target:[-.7,1,.3]}};
 const ease=(v,target,k)=>v.lerp(target,k);
 export class Workshop {
  constructor(host,{onStation=()=>{},onTool=()=>{},onMark=()=>{},onReady=()=>{},onHint=()=>{}}={}) {
   this.targets=[];this.onHint=onHint;this.mobile=matchMedia('(pointer: coarse)').matches;this.dirtyUntil=performance.now()+2500;this.viewRevision=0;this.host=host;this.onStation=onStation;this.onTool=onTool;this.onMark=onMark;this.station='village';this.interact='rotate';this.state=null;this.disposed=false;this.textures=[];this.meshes=[];this.frame=0;this.t=0;this.lastTime=0;this.fps=0;this.animatingCamera=false;this.animateUntil=0;
   try{this.renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'low-power'});}catch{host.innerHTML='<div class="scene-fallback"><b>三维预览不可用</b><p>仍可通过右上角「⋯ → 备用工具」完成学习，交织图会同步记录操作。</p></div>';this.failed=true;onReady(false);return;}
-  const r=this.renderer;r.setPixelRatio(Math.min(devicePixelRatio,this.mobile?1:1.65));r.outputColorSpace=T.SRGBColorSpace;r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1.15;r.shadowMap.enabled=!this.mobile;r.shadowMap.type=T.PCFSoftShadowMap;host.append(r.domElement);r.domElement.setAttribute('aria-label','可操作的三维织造工坊');
-  this.scene=new T.Scene();this.scene.background=new T.Color('#c4cebe');this.scene.fog=new T.Fog('#c4cebe',15,30);
+  const r=this.renderer;r.setPixelRatio(Math.min(devicePixelRatio,this.mobile?1.35:1.65));r.outputColorSpace=T.SRGBColorSpace;r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=.94;r.shadowMap.enabled=!this.mobile;r.shadowMap.type=T.PCFSoftShadowMap;host.append(r.domElement);r.domElement.setAttribute('aria-label','可操作的三维织造工坊');
+  this.scene=new T.Scene();this.scene.background=new T.Color('#c4cebe');this.scene.fog=new T.Fog('#c4cebe',29,55);
   this.camera=new T.PerspectiveCamera(39,1,.05,40);this.controls=new OrbitControls(this.camera,r.domElement);this.controls.enableDamping=true;this.controls.dampingFactor=.09;this.controls.enablePan=false;this.controls.minDistance=2.6;this.controls.maxDistance=45;this.controls.maxPolarAngle=Math.PI*.48;
   this.controls.addEventListener('start',()=>{this.animatingCamera=false;this.dirtyUntil=performance.now()+1500;});this.controls.addEventListener('change',()=>this.dirtyUntil=performance.now()+500);
-  this.scene.add(new T.HemisphereLight('#fff6df','#647464',2));
-  const sun=new T.DirectionalLight('#ffe6b4',3.1);sun.position.set(-3,8,5);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-7;sun.shadow.camera.right=7;sun.shadow.camera.top=7;sun.shadow.camera.bottom=-7;sun.shadow.normalBias=.03;this.scene.add(sun);
+  this.scene.add(new T.HemisphereLight('#fff6df','#514c39',1.65));
+  const sun=new T.DirectionalLight('#ffe4ae',2.65);sun.position.set(-3,8,5);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-7;sun.shadow.camera.right=7;sun.shadow.camera.top=7;sun.shadow.camera.bottom=-7;sun.shadow.normalBias=.03;this.scene.add(sun);
   this.wood=new T.MeshStandardMaterial({color:'#956a41',roughness:.83});this.darkwood=new T.MeshStandardMaterial({color:'#4a392b',roughness:.9});this.plaster=new T.MeshStandardMaterial({color:'#e4dac3',roughness:1});this.paper=new T.MeshStandardMaterial({color:'#f4ead4',roughness:1});this.metal=new T.MeshStandardMaterial({color:'#83765e',metalness:.55,roughness:.45});this.yarnMaterials={};
-  this.buildRoom();this.buildLoom();this.buildDoll();this.buildArchive();this.buildHandsOn();this.setStation('village',true);
+  this.buildRoom();this.buildLoom();this.buildDoll();this.buildArchive();this.scene.traverse(o=>{if(o.isLight)o.layers.enable(1);});this.buildHandsOn();dressAtelier(this);this.syncSampler=buildSampler(this);this.setStation('village',true);
   this.raycaster=new T.Raycaster();this.pointer=new T.Vector2();this.down=null;this.painting=false;
+  this.reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  this.readout=document.createElement('output');this.readout.className='tool-readout';this.readout.hidden=true;host.append(this.readout);
   this.handlers={down:e=>this.pointerDown(e),move:e=>this.pointerMove(e),up:e=>this.pointerUp(e),lost:()=>this.cancelGesture()};
   r.domElement.addEventListener('pointerdown',this.handlers.down,true);r.domElement.addEventListener('pointermove',this.handlers.move,true);r.domElement.addEventListener('pointerup',this.handlers.up,true);r.domElement.addEventListener('pointercancel',this.handlers.lost,true);
   this.observer=new ResizeObserver(()=>this.resize());this.observer.observe(host);this.resize();
-  this.visibility=()=>{if(document.hidden){cancelAnimationFrame(this.frame);this.frame=0;}else if(!this.frame){this.lastTime=0;this.tick(performance.now());}};document.addEventListener('visibilitychange',this.visibility);
-  this.contextLost=e=>{e.preventDefault();host.dataset.context='lost';};this.contextRestored=()=>{host.dataset.context='';};r.domElement.addEventListener('webglcontextlost',this.contextLost);r.domElement.addEventListener('webglcontextrestored',this.contextRestored);
+  this.visibility=()=>{if(document.hidden){cancelAnimationFrame(this.frame);this.frame=0;}else if(!this.frame){this.lastTime=0;this.dirtyUntil=performance.now()+800;this.tick(performance.now());}};document.addEventListener('visibilitychange',this.visibility);
+  this.contextLost=e=>{e.preventDefault();host.dataset.context='lost';};this.contextRestored=()=>{host.dataset.context='';this.dirtyUntil=performance.now()+1000;};r.domElement.addEventListener('webglcontextlost',this.contextLost);r.domElement.addEventListener('webglcontextrestored',this.contextRestored);
   this.frame=requestAnimationFrame(time=>this.tick(time));onReady(true);
  }
  material(color){return new T.MeshStandardMaterial({color,roughness:.85});}
@@ -42,7 +47,7 @@ export class Workshop {
   const win=this.material('#c0d8ce');this.box(2.4,1.6,.04,.6,2.05,-3.07,win);
   for(const x of [-.65,.6,1.85])this.box(.08,1.8,.1,x,2.05,-2.98,this.darkwood);
   this.box(2.6,.08,.1,.6,2.05,-2.97,this.darkwood);
-  this.label('织 游  ·  山 海 工 坊',-.8,3.05,-2.94,2.9);
+  this.label('织 游  ·  山 海 工 坊',-.15,3.44,-2.82,2.9);
   // Skeins, shelves, clay vessels and a leafy plant form a navigable diorama.
   for(let level=0;level<3;level++){
    this.box(2.05,.09,.5,3.05,.7+level*.65,-2.65);
@@ -78,9 +83,9 @@ export class Workshop {
   this.shuttle=new T.Group();g.add(this.shuttle);this.shuttle.position.set(-1.18,1.62,.12);
   const boat=this.box(.46,.1,.16,0,0,0,this.wood,this.shuttle);boat.geometry.dispose();boat.geometry=new T.CapsuleGeometry(.065,.32,4,10);boat.rotation.z=Math.PI/2;
   const bobbin=this.cylinder(.045,.2,0,.06,0,this.material('#d7c29d'),this.shuttle);bobbin.rotation.z=Math.PI/2;this.shuttle.userData.tool='shuttle';
-  this.cloth=new T.Mesh(new T.PlaneGeometry(1.82,1.06),new T.MeshStandardMaterial({color:'#d9c9a5',side:T.DoubleSide,roughness:1}));this.cloth.rotation.x=-Math.PI/2;this.cloth.position.set(0,1.54,.65);g.add(this.cloth);
-  this.cloth.userData.tool='inspect';
-  this.frontCloth=new T.Mesh(new T.PlaneGeometry(1.82,.65),new T.MeshStandardMaterial({color:'#d9c9a5',side:T.DoubleSide,roughness:1}));this.frontCloth.position.set(0,1.17,1.17);g.add(this.frontCloth);
+  this.liveWeft=new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(),new T.Vector3()]),new T.LineBasicMaterial({color:'#fff1d8'}));this.liveWeft.frustumCulled=false;g.add(this.liveWeft);
+  this.cloth=new T.Mesh(new T.PlaneGeometry(1.82,1,1,28),new T.MeshStandardMaterial({side:T.DoubleSide,roughness:1}));
+  g.add(this.cloth);this.cloth.frustumCulled=false;this.cloth.userData.tool='inspect';
   const stool=this.cylinder(.38,.15,0,.6,1.85,this.wood,g);for(const x of [-.23,.23])this.box(.09,.55,.09,x,.28,1.85,this.darkwood,g);
   this.label('织 造 台',-.7,.32,2.28,1.1);
  }
@@ -101,17 +106,19 @@ export class Workshop {
   this.label('纺  ·  染  ·  织  ·  绣',-3,2.05,-1.36,1.15);
   this.label('资 料 台',-3,.32,-.15,1.05);
  }
- setStation(station,instant=false){if(this.failed)return;this.dirtyUntil=performance.now()+2000;this.station=station;this.interact='direct';this.cancelGesture();this.controls.enableDamping=false;this.controls.update();this.controls.enableDamping=true;this.cameraStart=performance.now();this.startEye=this.camera.position.clone();this.startTarget=this.controls.target.clone();const p=POSITIONS[station]||POSITIONS.village;this.goalEye=new T.Vector3(...p.eye);this.goalTarget=new T.Vector3(...p.target);this.fitView(this.goalEye,this.goalTarget,station);if(instant){this.camera.position.copy(this.goalEye);this.controls.target.copy(this.goalTarget);this.controls.update();this.animatingCamera=false;}else{this.animatingCamera=true;this.controls.enabled=false;}}
+ setStation(station,instant=false){if(this.failed)return;this.dirtyUntil=performance.now()+2000;this.station=station;this.camera.layers.set(station==='sampler'?1:0);this.controls.enableRotate=station!=='sampler';this.interact='direct';this.cancelGesture();this.controls.enableDamping=false;this.controls.update();this.controls.enableDamping=true;this.cameraStart=performance.now();this.startEye=this.camera.position.clone();this.startTarget=this.controls.target.clone();const p=POSITIONS[station]||POSITIONS.village;this.goalEye=new T.Vector3(...p.eye);this.goalTarget=new T.Vector3(...p.target);this.fitView(this.goalEye,this.goalTarget,station);if(instant){this.camera.position.copy(this.goalEye);this.controls.target.copy(this.goalTarget);this.controls.update();this.animatingCamera=false;}else{this.animatingCamera=true;this.controls.enabled=false;}}
  fitView(eye,target,station){
   if(!this.targets?.length)return;
   this.scene.updateMatrixWorld(true);
   const objects=this.targets.filter(t=>t.station===station);
   if(!objects.length)return;
+  // Recalculate distance from the work envelope. Both portrait and wide screens get a usable close-up.
+  const margin=station==='loom'?.90:.82;
   const camera=this.camera.clone();camera.aspect=this.host.clientWidth/Math.max(1,this.host.clientHeight);camera.updateProjectionMatrix();
   for(let iteration=0;iteration<5;iteration++){
    camera.position.copy(eye);camera.lookAt(target);camera.updateMatrixWorld(true);
    let factor=1;
-   for(const t of objects){const p=t.object.getWorldPosition(new T.Vector3()).project(camera);factor=Math.max(factor,Math.abs(p.x)/.78,p.y/.78,-p.y/.53);}
+   for(const t of objects){const p=t.object.getWorldPosition(new T.Vector3()).project(camera);factor=Math.max(factor,Math.abs(p.x)/margin,p.y/.78,-p.y/.53);}
    if(factor<=1.01)break;
    eye.copy(target).add(camera.position.clone().sub(target).multiplyScalar(Math.min(2,factor)*1.025));
   }
@@ -121,52 +128,88 @@ export class Workshop {
  update(state){
   this.state=state;if(this.failed)return;this.dirtyUntil=performance.now()+1500;this.updateTargets();
   const run=state.run;
+  this.syncSampler(state.sampler);
+  const newest=state.works[0];
+  if(this.galleryId!==newest?.id){
+   this.galleryId=newest?.id;this.galleryTexture?.dispose();this.galleryTexture=null;
+   if(newest){this.galleryTexture=new T.CanvasTexture(drawFabric(newest.run,{repeat:2}));this.galleryTexture.colorSpace=T.SRGBColorSpace;}
+   this.gallery.material.map=this.galleryTexture||this.galleryDefault;this.gallery.material.needsUpdate=true;
+  }
   if(run){
    const m=missionOf(run.missionId);
    this.warpLines.forEach((line,i)=>{line.visible=i<run.warpCount;line.material.color.set(warpColor(run,i));const a=line.geometry.attributes.position;const raised=run.shed!==null&&((i-run.shed+(m.type==='twill'?4:2))%(m.type==='twill'?4:2)<(m.type==='twill'?2:1));a.setY(1,1.53+(raised?.34:-.04));a.needsUpdate=true;});
    const signature=JSON.stringify([run.rows,run.warpYarn,run.warpStyle]);
-   if(signature!==this.fabricSignature){this.fabricSignature=signature;const canvas=drawFabric(run,{repeat:2});this.fabricTexture?.dispose();this.fabricTexture=new T.CanvasTexture(canvas);this.fabricTexture.colorSpace=T.SRGBColorSpace;for(const mesh of [this.cloth,this.frontCloth]){mesh.visible=run.rows.length>0;mesh.material.map=this.fabricTexture;mesh.material.needsUpdate=true;}}
+   if(signature!==this.fabricSignature){
+    this.fabricSignature=signature;
+    if(run.rows.length){
+     this.fabricTexture?.dispose();this.fabricTexture=new T.CanvasTexture(drawFabric(run));
+     this.fabricTexture.colorSpace=T.SRGBColorSpace;this.cloth.material.map=this.fabricTexture;this.cloth.material.needsUpdate=true;
+     const geometry=this.cloth.geometry,positions=geometry.attributes.position,uv=geometry.attributes.uv;
+     const length=run.rows.length*.22;
+     for(let i=0;i<positions.count;i++){
+      const p=clothPoint(uv.getY(i)*length);positions.setY(i,p.y);positions.setZ(i,p.z);
+     }
+     positions.needsUpdate=true;geometry.computeVertexNormals();geometry.computeBoundingSphere();
+     const tip=clothPoint(length*.86);this.clothAnchor.position.set(0,tip.y,tip.z);
+    }
+   }
    const side=run.rows.length%2===0?-1:1;this.shuttleTarget=run.pending?-side*1.18:side*1.18;
    const event=run.events.at(-1);if(event?.type==='BEAT'&&event.at!==this.lastBeat){this.lastBeat=event.at;this.beatStart=performance.now();}
    this.shuttle.children[1].material.color.set(yarnOf(run.weftYarn).color);
   }
-  this.doll.setShape(state.draft.shape);if(this.doll.woodKey!==state.draft.wood)this.doll.setWood(state.draft.wood);this.doll.setFinish(state.draft.finish);
+  this.cloth.visible=!!run?.rows.length;
+  this.doll.setShape(state.draft.shape);if(this.doll.woodKey!==state.draft.wood)this.doll.setWood(state.draft.wood);if(this.doll.finishKey!==state.draft.finish)this.doll.setFinish(state.draft.finish);
   const signature=JSON.stringify([run?.rows,run?.warpYarn,run?.warpStyle,state.draft]);
-  if(signature!==this.dollSignature){this.dollSignature=signature;this.updateSkin();}
+  if(this.station==='doll'&&signature!==this.dollSignature){this.dollSignature=signature;this.updateSkin();}
  }
  updateSkin(){
-  const {run,draft}=this.state,c=this.paint.ctx;c.clearRect(0,0,512,512);c.drawImage(this.doll.woodCanvas,0,0,512,512);
+  const {run,draft}=this.state;
+  const baseKey=[this.fabricSignature,draft.wood,draft.layout,draft.scale,draft.shape].join('|');
+  if(baseKey!==this.paintBaseKey){
+  this.paintBaseKey=baseKey;this.paintBase=document.createElement('canvas');this.paintBase.width=this.paintBase.height=512;
+  const c=this.paintBase.getContext('2d');c.drawImage(this.doll.woodCanvas,0,0,512,512);
   if(run?.rows.length){const fabric=drawFabric(run,{size:256,repeat:draft.scale});c.save();if(draft.layout==='panel'){c.drawImage(fabric,160,220,192,280);}else if(draft.layout==='bands'){for(let y=225;y<512;y+=90)c.drawImage(fabric,0,y,512,58);}else{c.fillStyle=c.createPattern(fabric,'repeat');c.fillRect(0,220,512,292);}c.restore();}
   c.fillStyle='#3b352b';for(const x of [242,270]){c.beginPath();c.arc(x,145,4,0,Math.PI*2);c.fill();}c.strokeStyle='#a95444';c.lineWidth=3;c.beginPath();c.arc(256,155,10,.2,2.9);c.stroke();
-  for(const mark of draft.marks){const x=mark.u*512,y=(1-mark.v)*512;if(mark.kind==='brush'){c.fillStyle=mark.color;c.beginPath();c.arc(x,y,5,0,7);c.fill();}else{const decal=this.paint.createStampDecal(mark.kind,mark.color);c.drawImage(decal,x-22,y-22,44,44);}}
+  }
+  const c=this.paint.ctx;c.drawImage(this.paintBase,0,0);
+  this.stamps??=new Map();
+  for(const mark of draft.marks){const x=mark.u*512,y=(1-mark.v)*512;if(mark.kind==='brush'){c.fillStyle=mark.color;c.beginPath();c.arc(x,y,5,0,7);c.fill();}else{const key=mark.kind+mark.color;if(!this.stamps.has(key)){if(this.stamps.size>=48)this.stamps.clear();this.stamps.set(key,this.paint.createStampDecal(mark.kind,mark.color));}const decal=this.stamps.get(key);c.drawImage(decal,x-22,y-22,44,44);}}
   this.doll.setPaintCanvas(this.paint.canvas);
  }
  hit(event){const rect=this.renderer.domElement.getBoundingClientRect();this.pointer.set((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1);this.raycaster.setFromCamera(this.pointer,this.camera);return this.raycaster.intersectObjects(this.scene.children,true)[0];}
  pointerDown(e){
   if(this.animatingCamera){e.preventDefault();e.stopImmediatePropagation();return;}
   if(e.isPrimary===false){this.cancelGesture();return;}
+  this.dirtyUntil=performance.now()+600;
   this.down={x:e.clientX,y:e.clientY,time:performance.now(),pointer:e.pointerId};
-  const front=this.hit(e);
+  const front=this.station==='doll'?this.hit(e):null;
   if(this.station==='doll'&&['brush','daisy','leaf','star','blossom'].includes(this.interact)&&front?.object===this.doll.mesh){
    this.painting=true;this.controls.enabled=false;this.markAt(e);this.renderer.domElement.setPointerCapture(e.pointerId);return;
   }
   const target=this.pickTarget(e);
   if(target){
-   this.drag={target,start:this.down,tension:this.state?.run?.tension??60};
+   this.drag={target,start:this.down,shuttleX:this.shuttle.position.x,tension:this.state?.run?.tension??60};
    this.controls.enabled=false;this.controls.autoRotate=false;
    this.renderer.domElement.setPointerCapture(e.pointerId);return;
   }
-  if(this.station==='doll'&&['brush','daisy','leaf','star','blossom'].includes(this.interact)){
-   const hit=this.hit(e);
-   if(hit?.object===this.doll.mesh){this.painting=true;this.controls.enabled=false;this.markAt(e);this.renderer.domElement.setPointerCapture(e.pointerId);return;}
-  }
+
   this.controls.enabled=true;
  }
  pointerMove(e){
   if(this.drag){
+   if(e.pointerId!==this.down.pointer)return;
+   this.dirtyUntil=performance.now()+400;
    const dx=e.clientX-this.drag.start.x,dy=e.clientY-this.drag.start.y;
-   if(this.drag.target.id==='shuttle')this.shuttle.position.x=Math.max(-1.5,Math.min(1.5,(this.state.run.rows.length%2===0?-1.18:1.18)+dx/100));
-   if(this.drag.target.id==='beater')this.beater.position.z=.72+Math.max(-.2,Math.min(.55,dy/160));
+   if(this.drag.target.id==='shuttle')this.shuttle.position.x=Math.max(-1.5,Math.min(1.5,this.drag.shuttleX+dx*2.36/Math.max(85,this.host.clientWidth*.44)));
+   if(this.drag.target.id==='beater'||this.drag.target.id==='tension'){
+    const beat=this.drag.target.id==='beater';
+    const v=beat?packingForce(dy):Math.max(15,Math.min(95,Math.round(this.drag.tension+dx*.45)));
+    if(beat)this.beater.position.z=.72+Math.max(-.2,Math.min(.55,dy/160));
+    const r=this.host.getBoundingClientRect();
+    this.readout.textContent=(beat?'打纬':'张力')+' · '+(v<45?'松':v>75?'紧':'匀')+' '+v;
+    this.readout.style.left=Math.max(60,Math.min(r.width-60,e.clientX-r.left))+'px';
+    this.readout.style.top=Math.max(35,e.clientY-r.top-35)+'px';this.readout.hidden=false;
+   }
    if(this.drag.target.id==='warp-thread'){this.pullThread.visible=true;const a=this.pullThread.geometry.attributes.position;a.setXYZ(1,-1.35,1.65+Math.max(0,-dy/200),.9-Math.max(0,-dy/120));a.needsUpdate=true;}
    return;
   }
@@ -174,7 +217,7 @@ export class Workshop {
  }
  markAt(e){const hit=this.hit(e);if(hit?.object===this.doll.mesh&&hit.uv)this.onMark({u:hit.uv.x,v:hit.uv.y});}
  pointerUp(e){
-  if(!this.down)return;
+  if(!this.down||e.pointerId!==this.down.pointer)return;
   const dx=e.clientX-this.down.x,dy=e.clientY-this.down.y;
   if(this.painting){this.cancelGesture();return;}
   if(this.drag){
@@ -190,7 +233,7 @@ export class Workshop {
   }
   this.down=null;
  }
- cancelGesture(){this.painting=false;this.drag=null;this.down=null;if(this.controls)this.controls.enabled=true;if(this.pullThread)this.pullThread.visible=false;}
+ cancelGesture(){if(this.readout)this.readout.hidden=true;this.dirtyUntil=performance.now()+600;this.painting=false;this.drag=null;this.down=null;if(this.controls)this.controls.enabled=true;if(this.pullThread)this.pullThread.visible=false;}
  registerTarget(id,object,label,station,{primary=false}={}){
   const marker=new T.Mesh(new T.TorusGeometry(.13,.012,5,24),new T.MeshBasicMaterial({color:'#e8b966',transparent:true,opacity:.85,depthTest:false}));
   marker.rotation.x=-Math.PI/2;marker.position.y=.1;marker.renderOrder=5;object.add(marker);
@@ -199,6 +242,9 @@ export class Workshop {
  buildHandsOn(){
   // Materials live on the workbench, not in a screen palette.
   this.loomSpools=[];
+  this.box(.42,.085,2.40,1.58,1.045,-.10,this.wood,this.loom);
+  for(const z of [-1.1,.87])this.box(.12,1.02,.12,1.58,.51,z,this.darkwood,this.loom);
+  this.box(2.4,.075,1.44,0,.98,0,this.wood,this.dollStation);
   for(let i=0;i<YARNS.length;i++){
    const y=YARNS[i],g=new T.Group();g.position.set(1.58,1.25,-1.1+i*.4);this.loom.add(g);
    this.cylinder(.13,.28,0,0,0,this.material(y.color),g);this.cylinder(.16,.035,0,.15,0,this.wood,g);this.cylinder(.16,.035,0,-.15,0,this.wood,g);
@@ -219,7 +265,7 @@ export class Workshop {
   // Attach touch anchors to the actual moving tool, so hit areas follow animation.
   this.registerTarget('shuttle',this.shuttle,'按住梭子拖向另一端','loom');
   const beaterAnchor=new T.Group();beaterAnchor.position.set(0,1.85,0);this.beater.add(beaterAnchor);this.registerTarget('beater',beaterAnchor,'下拉打纬杆','loom');
-  const clothAnchor=new T.Group();clothAnchor.position.set(0,1.1,1.19);this.loom.add(clothAnchor);this.registerTarget('inspect',clothAnchor,'摸一摸布面','loom');
+  const clothAnchor=this.clothAnchor=new T.Group();clothAnchor.position.set(0,1.1,1.19);this.loom.add(clothAnchor);this.registerTarget('inspect',clothAnchor,'摸一摸布面','loom');
   const undo=this.cylinder(.17,.09,-1.2,1.08,1.2,this.material('#ad7953'),this.loom);undo.rotation.z=Math.PI/2;this.registerTarget('undo',undo,'回转拆纬','loom');
   this.loomBell=new T.Group();this.loomBell.position.set(1.45,.85,1.62);this.loom.add(this.loomBell);
   this.cylinder(.17,.2,0,0,0,this.material('#bb9a5b'),this.loomBell);this.cylinder(.05,.14,0,.16,0,this.darkwood,this.loomBell);this.registerTarget('submit',this.loomBell,'摇铃交布','loom');
@@ -230,7 +276,7 @@ export class Workshop {
   for(const x of [-1.1,1.1])this.box(.12,1.6,.12,x,.75,.02,this.darkwood,this.commissionBoard);
   for(let i=0;i<4;i++){
    const scroll=this.box(.51,.8,.045,-.95+i*.63,1.56,.09,this.paper,this.commissionBoard);
-   this.label('委托 '+(i+1),0,.12,.029,.43,scroll);this.registerTarget('commission-'+['first','repair','transfer','twill'][i],scroll,'委托 '+(i+1),'board');
+   const slip=new T.Mesh(new T.PlaneGeometry(.38,.34),new T.MeshStandardMaterial({map:textileMap(i),roughness:1}));slip.position.set(0,-.11,.028);scroll.add(slip);this.label('委托 '+(i+1),0,.23,.029,.43,scroll);this.registerTarget('commission-'+['first','repair','transfer','twill'][i],scroll,'委托 '+(i+1),'board');
   }
   const boardAnchor=new T.Group();boardAnchor.position.y=1.5;this.commissionBoard.add(boardAnchor);this.registerTarget('station-board',boardAnchor,'委托板','village');
   this.registerTarget('station-loom',this.loom,'织造台','village');
@@ -283,6 +329,7 @@ export class Workshop {
     if(t.id==='mentor')t.enabled&&=m?.id!=='transfer';
    }
    if(t.id.startsWith('commission-')){const i=['first','repair','transfer','twill'].indexOf(t.id.slice(11));t.enabled&&=i===0||!!this.state?.completed?.[['first','repair','transfer'][i-1]];t.primary=t.enabled&&i===Object.keys(this.state?.completed||{}).length;}
+   if(t.station==='sampler'){const solved=this.state?.sampler&&matchesSample(this.state.sampler);t.enabled&&=t.id==='next-sample'?solved:!solved;t.primary=t.enabled&&t.id==='next-sample';}
    if(t.station==='doll')t.enabled&&=!!run?.submitted;
    t.marker.visible=t.enabled&&(t.primary||t.id.startsWith('commission-'));
   }
@@ -311,12 +358,23 @@ export class Workshop {
   return null;
  }
  resize(){if(this.failed)return;this.dirtyUntil=performance.now()+1200;const {clientWidth:w,clientHeight:h}=this.host;this.renderer.setSize(w,h);this.camera.aspect=w/Math.max(1,h);this.camera.updateProjectionMatrix();if(!this.drag){this.fitView(this.camera.position,this.controls.target,this.station);this.controls.update();}}
- tick(time){if(this.disposed||document.hidden){this.frame=0;return;}this.frame=requestAnimationFrame(t=>this.tick(t));if(this.lastTime&&time-this.lastTime<(this.mobile?65:32))return;this.lastTime=time;this.controls.update();if(!this.drag&&!this.animatingCamera&&time>this.dirtyUntil)return;
-  if(this.animatingCamera){const t=Math.min(1,(time-this.cameraStart)/650),k=t*t*(3-2*t);this.camera.position.lerpVectors(this.startEye,this.goalEye,k);this.controls.target.lerpVectors(this.startTarget,this.goalTarget,k);if(t===1){this.animatingCamera=false;this.controls.enabled=true;}}
-  if(this.shuttleTarget!==undefined&&this.drag?.target.id!=='shuttle')this.shuttle.position.x+=(this.shuttleTarget-this.shuttle.position.x)*.18;
+ tick(time){if(this.disposed||document.hidden){this.frame=0;return;}this.frame=requestAnimationFrame(t=>this.tick(t));const active=this.animatingCamera||time<this.dirtyUntil;
+  if(!active)return;
+  const elapsed=this.lastTime?time-this.lastTime:16.7;
+  if(elapsed<15)return;
+  this.lastTime=time;this.controls.update();if(!this.drag&&!this.animatingCamera&&time>this.dirtyUntil)return;
+  if(this.animatingCamera){const t=Math.min(1,(time-this.cameraStart)/(this.reducedMotion?1:480)),k=t*t*(3-2*t);this.camera.position.lerpVectors(this.startEye,this.goalEye,k);this.controls.target.lerpVectors(this.startTarget,this.goalTarget,k);if(t===1){this.animatingCamera=false;this.controls.enabled=true;this.controls.update();}}
+  if(this.shuttleTarget!==undefined&&this.drag?.target.id!=='shuttle')this.shuttle.position.x+=(this.shuttleTarget-this.shuttle.position.x)*(1-Math.exp(-Math.min(elapsed,80)/66));
   const dt=time-(this.beatStart||-1000);if(this.drag?.target.id!=='beater')this.beater.position.z=.72-(dt<600?Math.sin(dt/600*Math.PI)*.45:0);
-  for(const t of this.targets)if(t.marker.visible){const k=1+Math.sin(time/450)*.12;t.marker.scale.setScalar(k);}
-  this.controls.update();if(!this.viewRevision)console.info("[scene] first frame begin");this.renderer.render(this.scene,this.camera);if(!this.viewRevision)console.info("[scene] first frame complete");this.viewRevision++;
+  const run=this.state?.run;
+  this.liveWeft.visible=!!run&&(!!run.pending||this.drag?.target.id==='shuttle');
+  if(this.liveWeft.visible){
+   const a=this.liveWeft.geometry.attributes.position;
+   a.setXYZ(0,run.rows.length%2?1.05:-1.05,1.64,.12);a.setXYZ(1,this.shuttle.position.x,1.66,.12);
+   a.needsUpdate=true;this.liveWeft.material.color.set(yarnOf(run.weftYarn).color);
+  }
+  for(const t of this.targets)if(t.marker.visible){const k=this.reducedMotion?1:1+Math.sin(time/450)*.08;t.marker.scale.setScalar(k);}
+  if(this.animatingCamera)this.controls.update();if(!this.viewRevision)console.info("[scene] first frame begin");this.renderer.render(this.scene,this.camera);if(!this.viewRevision)console.info("[scene] first frame complete");this.viewRevision++;
  }
- dispose(){this.disposed=true;if(this.failed)return;cancelAnimationFrame(this.frame);this.observer.disconnect();this.controls.dispose();document.removeEventListener('visibilitychange',this.visibility);for(const [event,key] of [['pointerdown','down'],['pointermove','move'],['pointerup','up'],['pointercancel','lost']])this.renderer.domElement.removeEventListener(event,this.handlers[key],true);this.renderer.domElement.removeEventListener('webglcontextlost',this.contextLost);this.renderer.domElement.removeEventListener('webglcontextrestored',this.contextRestored);const resources=new Set();this.scene.traverse(o=>{if(o.geometry)resources.add(o.geometry);for(const m of Array.isArray(o.material)?o.material:[o.material])if(m){resources.add(m);for(const t of Object.values(m))if(t?.isTexture)resources.add(t);}});resources.add(this.doll.woodTexture);resources.add(this.doll.woodBumpTexture);for(const resource of resources)resource.dispose();this.fabricTexture?.dispose();for(const t of this.textures)t.dispose();this.renderer.dispose();this.renderer.domElement.remove();}
+ dispose(){this.disposed=true;if(this.failed)return;cancelAnimationFrame(this.frame);this.observer.disconnect();this.controls.dispose();document.removeEventListener('visibilitychange',this.visibility);for(const [event,key] of [['pointerdown','down'],['pointermove','move'],['pointerup','up'],['pointercancel','lost']])this.renderer.domElement.removeEventListener(event,this.handlers[key],true);this.renderer.domElement.removeEventListener('webglcontextlost',this.contextLost);this.renderer.domElement.removeEventListener('webglcontextrestored',this.contextRestored);const resources=new Set();this.scene.traverse(o=>{if(o.geometry)resources.add(o.geometry);for(const m of Array.isArray(o.material)?o.material:[o.material])if(m){resources.add(m);for(const t of Object.values(m))if(t?.isTexture)resources.add(t);}});resources.add(this.doll.woodTexture);resources.add(this.doll.woodBumpTexture);for(const resource of resources)resource.dispose();this.fabricTexture?.dispose();for(const t of this.textures)t.dispose();this.readout?.remove();this.renderer.dispose();this.renderer.domElement.remove();}
 }

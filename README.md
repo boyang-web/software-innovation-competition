@@ -1,12 +1,12 @@
-> v0.3: Scene-first interaction. Tap physical objects and drag the actual tools. The toolbar is available on demand from the top-right pocket menu. See RELEASE_NOTES.md and docs/architecture.md for the current interaction flow.
+# 织游 · 山海工坊 v0.4
 
-# 织游 · 山海工坊 v0.3
-
-Android 三维工艺学习原型。把文化资料、工具操作、实际织物、错误诊断、独立迁移与木偶创作连接成一条持续任务。不是完整非遗技艺复原，也不是已经验证学习成效的教育产品。
+把文化资料、工具操作、实际织物、错误诊断、独立迁移与木偶创作连接成一条持续任务。不是完整非遗技艺复原，也不是已经验证学习成效的教育产品。
 
 [下载 Android Release](https://github.com/boyang-web/software-innovation-competition/releases/latest)
 
 ## 体验路线
+
+进门可直接体验墙上的补纹架。对照左侧原样、转动木珠补出平纹与斜纹，三块样布的进度自动保存。下列委托把这些结构带回织机。
 
 1. 在资料台研读文化语境与经纬原理。
 2. 接受第一份委托，选纱并完成 12 根经线的整经。

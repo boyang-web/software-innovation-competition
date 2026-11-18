@@ -1,5 +1,6 @@
 import * as T from 'three';
 import {dressAtelier,textileMap} from './atelier.js';
+import {buildCraftTray} from './craft-tray.js';
 import {buildSampler} from './sampler.js';
 import {matchesSample} from '../domain/sampler.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
@@ -10,7 +11,7 @@ import {warpColor,yarnOf,THREADS} from '../domain/loom.js';
 import {missionOf,YARNS} from '../content/course.js';
 import {resolveGesture,packingForce} from './gestures.js';
 
-const POSITIONS={sampler:{eye:[-2.97,2.35,1.5],target:[-2.97,2.22,-2.8]},village:{eye:[6.6,8.5,15.2],target:[0,1.3,0]},board:{eye:[2.7,3.2,7.4],target:[-.5,1.5,2.8]},loom:{eye:[.75,5.4,6],target:[-.60,1.45,.40]},doll:{eye:[4.4,3.3,4.3],target:[2.45,1.55,.1]},archive:{eye:[-4.3,2.8,4.8],target:[-2.8,1.3,-.9]},top:{eye:[-.7,6.6,.35],target:[-.7,1,.3]}};
+const POSITIONS={craft:{eye:[-2.82,3.02,3.35],target:[-3.2,1.15,1.62]},sampler:{eye:[-2.97,2.35,1.5],target:[-2.97,2.22,-2.8]},village:{eye:[6.6,8.5,15.2],target:[0,1.3,0]},board:{eye:[2.7,3.2,7.4],target:[-.5,1.5,2.8]},loom:{eye:[.75,5.4,6],target:[-.60,1.45,.40]},doll:{eye:[4.4,3.3,4.3],target:[2.45,1.55,.1]},archive:{eye:[-4.3,2.8,4.8],target:[-2.8,1.3,-.9]},top:{eye:[-.7,6.6,.35],target:[-.7,1,.3]}};
 const ease=(v,target,k)=>v.lerp(target,k);
 export class Workshop {
  constructor(host,{onStation=()=>{},onTool=()=>{},onMark=()=>{},onReady=()=>{},onHint=()=>{}}={}) {
@@ -23,10 +24,21 @@ export class Workshop {
   this.scene.add(new T.HemisphereLight('#fff6df','#514c39',1.65));
   const sun=new T.DirectionalLight('#ffe4ae',2.65);sun.position.set(-3,8,5);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-7;sun.shadow.camera.right=7;sun.shadow.camera.top=7;sun.shadow.camera.bottom=-7;sun.shadow.normalBias=.03;this.scene.add(sun);
   this.wood=new T.MeshStandardMaterial({color:'#956a41',roughness:.83});this.darkwood=new T.MeshStandardMaterial({color:'#4a392b',roughness:.9});this.plaster=new T.MeshStandardMaterial({color:'#e4dac3',roughness:1});this.paper=new T.MeshStandardMaterial({color:'#f4ead4',roughness:1});this.metal=new T.MeshStandardMaterial({color:'#83765e',metalness:.55,roughness:.45});this.yarnMaterials={};
-  this.buildRoom();this.buildLoom();this.buildDoll();this.buildArchive();this.scene.traverse(o=>{if(o.isLight)o.layers.enable(1);});this.buildHandsOn();dressAtelier(this);this.syncSampler=buildSampler(this);this.setStation('village',true);
+  this.buildRoom();this.buildLoom();this.buildDoll();this.buildArchive();this.scene.traverse(o=>{if(o.isLight)o.layers.enable(1);});this.buildHandsOn();dressAtelier(this);this.syncSampler=buildSampler(this);this.syncCraft=buildCraftTray(this);this.setStation('village',true);
   this.raycaster=new T.Raycaster();this.pointer=new T.Vector2();this.down=null;this.painting=false;
   this.reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
   this.readout=document.createElement('output');this.readout.className='tool-readout';this.readout.hidden=true;host.append(this.readout);
+  // Android may dispatch a compatibility click to a dialog that opened on pointerup.
+  // Swallow that same touch only. A fresh pointerdown always starts a new interaction.
+  this.freshPointer=()=>{this.handledTouch=null;};
+  this.compatClick=e=>{
+   const p=this.handledTouch;this.handledTouch=null;
+   if(p&&performance.now()-p.time<700&&Math.hypot(e.clientX-p.x,e.clientY-p.y)<16){
+    e.preventDefault();e.stopImmediatePropagation();
+   }
+  };
+  document.addEventListener('pointerdown',this.freshPointer,true);
+  document.addEventListener('click',this.compatClick,true);
   this.handlers={down:e=>this.pointerDown(e),move:e=>this.pointerMove(e),up:e=>this.pointerUp(e),lost:()=>this.cancelGesture()};
   r.domElement.addEventListener('pointerdown',this.handlers.down,true);r.domElement.addEventListener('pointermove',this.handlers.move,true);r.domElement.addEventListener('pointerup',this.handlers.up,true);r.domElement.addEventListener('pointercancel',this.handlers.lost,true);
   this.observer=new ResizeObserver(()=>this.resize());this.observer.observe(host);this.resize();
@@ -58,8 +70,8 @@ export class Workshop {
    }
   }
   for(const x of [2.03,4.08])this.box(.07,2.3,.4,x,1.3,-2.65,this.darkwood);
-  const pot=this.cylinder(.27,.44,-3.6,.24,1.4,this.material('#b16e4d'));
-  for(let j=0;j<7;j++){const leaf=new T.Mesh(new T.SphereGeometry(.25,10,6),this.material(j%2?'#668168':'#819071'));leaf.scale.set(.38,2.1,.65);leaf.rotation.z=j*.8;leaf.position.set(-3.6+Math.sin(j)*.25,.7+j*.07,1.4+Math.cos(j)*.2);this.scene.add(leaf);}
+  const pot=this.cylinder(.27,.44,-4.05,.24,2.65,this.material('#b16e4d'));
+  for(let j=0;j<7;j++){const leaf=new T.Mesh(new T.SphereGeometry(.25,10,6),this.material(j%2?'#668168':'#819071'));leaf.scale.set(.38,2.1,.65);leaf.rotation.z=j*.8;leaf.position.set(-4.05+Math.sin(j)*.25,.7+j*.07,2.65+Math.cos(j)*.2);this.scene.add(leaf);}
   this.box(1.6,.04,1.3,2.45,.02,.25,this.material('#a2644a'));
  }
  buildLoom(){
@@ -113,7 +125,7 @@ export class Workshop {
   const objects=this.targets.filter(t=>t.station===station);
   if(!objects.length)return;
   // Recalculate distance from the work envelope. Both portrait and wide screens get a usable close-up.
-  const margin=station==='loom'?.90:.82;
+  const margin=station==='craft'?.67:station==='loom'?.90:.82;
   const camera=this.camera.clone();camera.aspect=this.host.clientWidth/Math.max(1,this.host.clientHeight);camera.updateProjectionMatrix();
   for(let iteration=0;iteration<5;iteration++){
    camera.position.copy(eye);camera.lookAt(target);camera.updateMatrixWorld(true);
@@ -123,12 +135,12 @@ export class Workshop {
    eye.copy(target).add(camera.position.clone().sub(target).multiplyScalar(Math.min(2,factor)*1.025));
   }
  }
- topView(){this.dirtyUntil=performance.now()+2000;this.cameraStart=performance.now();this.startEye=this.camera.position.clone();this.startTarget=this.controls.target.clone();const p=POSITIONS.top;this.goalEye=new T.Vector3(...p.eye);this.goalTarget=new T.Vector3(...p.target);this.animatingCamera=true;}
- setTool(tool){this.dirtyUntil=performance.now()+600;this.interact=tool;if(!this.drag&&!this.painting)this.controls.enabled=!this.animatingCamera;}
+ topView(){if(this.failed)return;this.dirtyUntil=performance.now()+2000;this.cameraStart=performance.now();this.startEye=this.camera.position.clone();this.startTarget=this.controls.target.clone();const p=POSITIONS.top;this.goalEye=new T.Vector3(...p.eye);this.goalTarget=new T.Vector3(...p.target);this.animatingCamera=true;}
+ setTool(tool){if(this.failed)return;this.dirtyUntil=performance.now()+600;this.interact=tool;if(!this.drag&&!this.painting)this.controls.enabled=!this.animatingCamera;}
  update(state){
   this.state=state;if(this.failed)return;this.dirtyUntil=performance.now()+1500;this.updateTargets();
   const run=state.run;
-  this.syncSampler(state.sampler);
+  this.syncSampler(state.sampler);this.syncCraft(state.learning.craft.length);
   const newest=state.works[0];
   if(this.galleryId!==newest?.id){
    this.galleryId=newest?.id;this.galleryTexture?.dispose();this.galleryTexture=null;
@@ -222,6 +234,7 @@ export class Workshop {
   if(this.painting){this.cancelGesture();return;}
   if(this.drag){
    const {target,tension}=this.drag;
+   if(e.pointerType==='touch')this.handledTouch={x:e.clientX,y:e.clientY,time:performance.now()};
    const result=resolveGesture(target.id,dx,dy,{tension});
    this.cancelGesture();
    if(result.hint)this.onHint(result.hint);
@@ -351,6 +364,13 @@ export class Workshop {
  pickTarget(event){
   const points=this.targetPoints().filter(t=>t.visible).map(t=>({...t,distance:Math.hypot(t.x-event.clientX,t.y-event.clientY)})).filter(t=>t.distance<25).sort((a,b)=>a.distance-b.distance);
   if(points.length)return this.targets.find(t=>t.id===points[0].id&&t.enabled);
+  // At dense angles a label can overlap a different tool. The actual tool always wins.
+  for(const label of this.host.parentElement.querySelectorAll('.place-label')){
+   const rect=label.getBoundingClientRect();
+   if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)continue;
+   const target=this.targets.find(t=>t.enabled&&t.id===label.dataset.objectLabel);
+   if(target)return target;
+  }
   if(this.station==='village'){
    let node=this.hit(event)?.object;
    while(node){if(node.userData.station)return this.targets.find(t=>t.id==='station-'+node.userData.station&&t.enabled)||null;node=node.parent;}
@@ -376,5 +396,5 @@ export class Workshop {
   for(const t of this.targets)if(t.marker.visible){const k=this.reducedMotion?1:1+Math.sin(time/450)*.08;t.marker.scale.setScalar(k);}
   if(this.animatingCamera)this.controls.update();if(!this.viewRevision)console.info("[scene] first frame begin");this.renderer.render(this.scene,this.camera);if(!this.viewRevision)console.info("[scene] first frame complete");this.viewRevision++;
  }
- dispose(){this.disposed=true;if(this.failed)return;cancelAnimationFrame(this.frame);this.observer.disconnect();this.controls.dispose();document.removeEventListener('visibilitychange',this.visibility);for(const [event,key] of [['pointerdown','down'],['pointermove','move'],['pointerup','up'],['pointercancel','lost']])this.renderer.domElement.removeEventListener(event,this.handlers[key],true);this.renderer.domElement.removeEventListener('webglcontextlost',this.contextLost);this.renderer.domElement.removeEventListener('webglcontextrestored',this.contextRestored);const resources=new Set();this.scene.traverse(o=>{if(o.geometry)resources.add(o.geometry);for(const m of Array.isArray(o.material)?o.material:[o.material])if(m){resources.add(m);for(const t of Object.values(m))if(t?.isTexture)resources.add(t);}});resources.add(this.doll.woodTexture);resources.add(this.doll.woodBumpTexture);for(const resource of resources)resource.dispose();this.fabricTexture?.dispose();for(const t of this.textures)t.dispose();this.readout?.remove();this.renderer.dispose();this.renderer.domElement.remove();}
+ dispose(){this.disposed=true;if(this.failed)return;cancelAnimationFrame(this.frame);this.observer.disconnect();document.removeEventListener('pointerdown',this.freshPointer,true);document.removeEventListener('click',this.compatClick,true);this.controls.dispose();document.removeEventListener('visibilitychange',this.visibility);for(const [event,key] of [['pointerdown','down'],['pointermove','move'],['pointerup','up'],['pointercancel','lost']])this.renderer.domElement.removeEventListener(event,this.handlers[key],true);this.renderer.domElement.removeEventListener('webglcontextlost',this.contextLost);this.renderer.domElement.removeEventListener('webglcontextrestored',this.contextRestored);const resources=new Set();this.scene.traverse(o=>{if(o.geometry)resources.add(o.geometry);for(const m of Array.isArray(o.material)?o.material:[o.material])if(m){resources.add(m);for(const t of Object.values(m))if(t?.isTexture)resources.add(t);}});resources.add(this.doll.woodTexture);resources.add(this.doll.woodBumpTexture);for(const resource of resources)resource.dispose();this.fabricTexture?.dispose();for(const t of this.textures)t.dispose();this.readout?.remove();this.renderer.dispose();this.renderer.domElement.remove();}
 }

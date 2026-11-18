@@ -1,8 +1,9 @@
+import {freshLearning,restoreLearning} from './apprentice.js';
 import {freshSampler,restoreSampler} from './sampler.js';
 import {createRun,inspect,THREADS} from './loom.js';
 import {MISSIONS,YARNS} from '../content/course.js';
 const KEY='zhiyou-workshop-v2';
-export const newState=()=>({version:2,sampler:freshSampler(),page:'village',missionId:'first',run:null,completed:{},read:[],works:[],draft:{name:'',shape:'cone',wood:'beech',finish:'wax',marks:[],layout:'repeat',scale:2},review:{},endpoint:'',stats:{runs:0}});
+export const newState=()=>({version:2,learning:freshLearning(),sampler:freshSampler(),page:'village',missionId:'first',run:null,completed:{},read:[],works:[],draft:{name:'',shape:'cone',wood:'beech',finish:'wax',marks:[],layout:'repeat',scale:2},review:{},endpoint:'',stats:{runs:0}});
 const safeColor=c=>typeof c==='string'&&/^#[0-9a-f]{6}$/i.test(c);
 export function validRun(r){
  if(!r||!MISSIONS.some(m=>m.id===r.missionId)||!['warp','shed'].includes(r.phase)||!Number.isInteger(r.warpCount)||r.warpCount<0||r.warpCount>THREADS||!Array.isArray(r.rows)||r.rows.length>missionRows(r.missionId))return false;
@@ -15,9 +16,10 @@ function missionRows(id){return MISSIONS.find(m=>m.id===id)?.rows||0;}
 function sanitizeRun(r){const base=createRun(r.missionId);return {...base,...r,events:r.events.map(e=>({seq:Number(e.seq)||0,type:String(e.type).slice(0,20),value:typeof e.value==='number'||typeof e.value==='string'?e.value:null,axis:e.axis==='warp'?'warp':e.axis==='weft'?'weft':null,direction:e.direction==='left'?'left':'right',row:Number(e.row)||0,at:Number(e.at)||0})),hints:Math.max(0,Number(r.hints)||0),undoCount:Math.max(0,Number(r.undoCount)||0),submitted:r.submitted===true&&inspect(r).complete};}
 export function restoreV2(raw){
  const s=newState();try{const p=JSON.parse(raw);if(p.version!==2)return s;
+ s.learning=restoreLearning(p.learning);
  s.sampler=restoreSampler(p.sampler);
  s.run=validRun(p.run)?sanitizeRun(p.run):null;
- s.page=['village','brief','loom','doll','journal','archive','sampler','settings','review'].includes(p.page)?p.page:'village';
+ s.page=['village','brief','loom','doll','journal','archive','sampler','study','craft','settings','review'].includes(p.page)?p.page:'village';
  if(['loom','doll'].includes(s.page)&&!s.run)s.page='village';if(s.page==='doll'&&!s.run?.submitted)s.page='loom';
  s.missionId=MISSIONS.some(m=>m.id===p.missionId)?p.missionId:'first';
  s.completed=Object.fromEntries(MISSIONS.filter(m=>p.completed?.[m.id]?.passed===true).map(m=>[m.id,{passed:true,hints:Math.max(0,Number(p.completed[m.id].hints)||0),quality:Math.max(0,Math.min(100,Number(p.completed[m.id].quality)||0)),events:Math.max(0,Number(p.completed[m.id].events)||0)}]));

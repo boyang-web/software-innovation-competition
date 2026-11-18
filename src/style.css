@@ -16,4 +16,13 @@
 .object-label{background:#fcf2df;color:#283f3d;font-size:11px;border-color:#e4d2af}.object-label.primary-label{background:#285449;color:#fff3ce;border-color:#e1c985}
 .camera-tools [hidden]{display:none}
 
-.place-label{pointer-events:auto;cursor:pointer;touch-action:manipulation}
+.place-label{pointer-events:none}
+.study-sheet p,.study-evidence p,.study-cloth figcaption{color:#41584c;line-height:1.7}
+.thread-key,.thread-study figcaption{font-size:12px}.study-cloth,.thread-study{padding:12px;background:#ddcfb4;border-radius:8px;margin:10px 0}
+.crossings,.editable-row{display:grid;grid-template-columns:repeat(4,minmax(32px,1fr));max-width:280px;gap:2px}
+.crossings i,.editable-row i{font-style:normal;display:grid;place-items:center;height:29px;font-weight:800}
+.warp-up{background:var(--warp,#265772);color:#fff}.weft-up{background:var(--weft,#eed19a);color:#453923}
+.editable-row{padding:4px;border:2px dashed #826643}.editable-row button{background:transparent;padding:0;border:0;min-height:44px}.editable-row i{height:44px}
+.fault-rows button{display:flex;align-items:center;gap:8px;border:2px solid transparent;background:#f3e8cf;width:100%;min-height:44px}.fault-rows .crossings{flex:1}
+.study-sheet [aria-pressed=true]{border:2px solid #376552;background:#dbe6d5;color:#233e35}
+.study-evidence{margin:12px 0;padding:12px 14px;border-left:3px solid #9f7544;background:#eee5d1}.study-evidence b{font-size:15px}.study-evidence p{font-size:13px}

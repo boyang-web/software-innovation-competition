@@ -24,12 +24,24 @@ async function start(id){await home();await touch('station-board');await touch('
 async function dress(){for(let i=0;i<3;i++)await drag('warp-thread',0,-80);assert.equal((await saved()).run.warpCount,12);await touch('dress');}
 async function row(index,shed,color){if(color)await touch('yarn-'+color);await touch('shed-'+shed);await drag('shuttle',index%2?-85:85,0);await drag('beater',0,75);}
 async function review(){for(const a of ['review-structure-0','review-culture-1','review-transfer-1'])await click(a);}
-async function shot(name){await page.waitForTimeout(400);await page.screenshot({path:`test-results/v4-${name}.png`});}
+async function shot(name){await page.waitForTimeout(400);await page.screenshot({path:`test-results/v5-${name}.png`});}
 try{
  await page.goto(process.env.TEST_URL||'http://127.0.0.1:5173');await page.waitForFunction(()=>window.__zhiyouSceneTargets&&window.__zhiyouDiagnostics?.().webgl);
  assert.equal(await page.locator('nav').count(),0,'main scene should not have a tab menu');
  assert.ok(await page.getByRole('button').filter({visible:true}).count()<=5,'only minimal camera and pocket controls remain');
  await shot('village');
+ await touch('station-craft');await point('fieldbook');await shot('craft');await touch('fieldbook');
+ // Keep an incorrect first answer. Reload halfway and finish the entry assessment unassisted.
+ assert.deepEqual((await saved()).learning.checks[0],[]);await click('study-flip-0');await click('study-submit');await click('study-next');await click('study-pick-2');await click('study-submit');await page.reload();
+ await click('study-pick-0');await click('study-submit');await click('study-next');await click('study-pick-1');await click('study-submit');await click('study-next');
+ assert.deepEqual((await saved()).learning.checks[0].map(r=>r.value),[8,2,0,1]);
+ await click('close-workbook');await home();await touch('station-craft');await touch('craft-vat');assert.deepEqual((await saved()).learning.misses,['vat']);
+ for(const tool of ['spindle','vat','frame','hoop'])await touch('craft-'+tool);
+ assert.equal((await saved()).learning.craft[0].tries.length,2);await touch('fieldbook');
+ await click('study-flip-0');await click('study-flip-2');await shot('study');await click('study-submit');await click('study-next');
+ for(const n of [3,1,2]){await click('study-pick-'+n);await click('study-submit');await click('study-next');}
+ assert.deepEqual((await saved()).learning.checks[1].map(r=>r.value),[10,3,1,2]);await page.locator('#workbook [data-action=journal]').click();
+ assert.match(await page.locator('#workbook-content').innerText(),/需练/);await click('close-workbook');await home();
  await touch('station-sampler');await point('peg-1');await shot('sampler');
  await touch('peg-0');assert.deepEqual((await saved()).sampler.phases,[1,0,0,1]);await touch('peg-0');await touch('peg-1');
  await touch('next-sample');await touch('peg-0');await page.reload();await page.waitForFunction(()=>window.__zhiyouSceneTargets);
@@ -61,4 +73,4 @@ try{
  for(const width of [320,390,768]){await page.setViewportSize({width,height:844});await home();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`overflow ${width}`);await touch('station-loom');await point('inspect');}
  await click('journal');const downloadPromise=page.waitForEvent('download');await page.locator('[data-action^="export-"]').filter({visible:true}).first().click();await (await downloadPromise).saveAs('test-results/exported-recipe.json');
  assert.deepEqual(errors,[]);console.log('PASS: all 4 missions via physical objects; drag-only winding/shuttle/beater; wrong-direction rejection; fault repair; in-scene material/tool selection and painting; reload/export; no main tab menu; responsive.');
-}catch(error){await page.screenshot({path:'test-results/v4-failure.png'});console.error('Scene diagnostics:',await page.evaluate(()=>({state:window.__zhiyouDiagnostics?.(),targets:window.__zhiyouSceneTargets?.()})));throw error;}finally{await browser.close();}
+}catch(error){await page.screenshot({path:'test-results/v5-failure.png'});console.error('Scene diagnostics:',await page.evaluate(()=>({state:window.__zhiyouDiagnostics?.(),targets:window.__zhiyouSceneTargets?.()})));throw error;}finally{await browser.close();}

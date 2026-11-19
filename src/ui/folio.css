@@ -1,0 +1,34 @@
+/* Indigo bindings and yarn-colored tabs link the room, reader and learning records. */
+:root{--indigo:#183e49;--ink-deep:#192f32;--ochre:#b55d3a;--sheet:#faf6ec;--hair:#dacfb9;--display:"Songti SC","Noto Serif CJK SC",serif}
+.scene-first .topbar{background:var(--indigo);color:#fff7e4;border-bottom:3px solid #b98b55}
+.brand{color:inherit}.brand b{font-family:var(--display);font-size:24px}.brand>span{color:#d6ddcc;border-left:1px solid #718781;padding-left:9px}
+.loom-logo{width:23px;height:23px;background:repeating-linear-gradient(45deg,transparent 0 3px,#ebbd76 3px 5px),repeating-linear-gradient(-45deg,transparent 0 4px,#e6d5b0 4px 6px);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.pocket{color:#fff5d9;border-color:#668084;background:#244955}.location,.object-label{font-weight:650}.scene-first .scene-note{background:var(--sheet);border:1px solid #e4d4b8;border-top:4px solid var(--ochre);border-radius:3px 3px 14px 14px;padding:13px 17px;max-height:190px}
+.scene-note b{font-family:var(--display);font-size:23px;letter-spacing:.03em}.scene-note p{font-size:13px;line-height:1.55}.scene-note small,.folio-label{font-size:11px;letter-spacing:.12em;font-weight:700}
+.craft-track{list-style:none;display:flex;padding:0;margin:10px 0 1px;gap:5px}.craft-track li{flex:1;padding-top:3px;border-top:3px solid var(--hair);font-size:11px;color:#736a58}.craft-track .done{border-color:#45695f}.craft-track .now{border-color:var(--ochre);color:#934526;font-weight:700}
+#inspector:has(.folio-reader),#workbook:is([data-view=study],[data-view=journal]){width:min(100%,480px);height:100dvh;max-height:100dvh;max-width:480px;margin:auto;padding:0;border:0;border-radius:0;background:var(--sheet);color:var(--ink-deep)}
+#workbook:is([data-view=study],[data-view=journal]) .book-close,.reader-close{position:sticky;top:14px;z-index:2;float:right;margin:14px 16px -54px 0;border:1px solid #c5c7b7;border-radius:50%;width:36px;height:36px;font-size:23px;line-height:1;background:#faf6ec;color:var(--indigo)}
+.reader-cover,.record-header,.study-heading{padding:26px 23px;color:#fff9e9;background-color:var(--indigo)}
+.reader-cover{height:clamp(205px,30dvh,270px);display:flex;flex-direction:column;justify-content:space-between;position:relative;background-image:linear-gradient(0deg,#122e36fa,transparent 87%),url('../assets/hills.jpg');background-size:cover;background-position:center}
+.reader-cover .folio-label{text-shadow:0 1px 5px #172a28}.reader-close{position:absolute;top:14px;right:16px;margin:0}
+.reader-cover small,.study-heading small{color:#f0d4a6;font-size:12px}.reader-cover h1,.record-header h1,.study-heading h1{font-family:var(--display);font-weight:650;color:#fff8e6;font-size:clamp(26px,7.2vw,34px);line-height:1.3;margin:6px 0 0}
+.reader-body,.learning-summary{padding:21px 23px}.reader-body h2,.learning-summary h2{font:650 21px/1.4 var(--display);color:var(--indigo)}
+.material-list{list-style:none;margin:5px 0 14px;padding:0}.material-list li{display:flex;align-items:center;gap:13px;padding:13px 0;border-bottom:1px solid var(--hair)}
+.material-list li>span{display:grid;place-items:center;width:38px;height:40px;flex:none;color:#fff6e4;background:var(--indigo);font:23px var(--display);border-radius:3px}.material-list li:nth-child(even)>span{background:#994f37}
+.material-list li b,.material-list li small{display:block}.material-list li small{font-size:12px;color:#555d54;line-height:1.65}.material-list li b{font-size:15px}
+.reader-body>.primary,.study-sheet>.primary,#workbook .learning-summary>.secondary{width:100%;background:var(--indigo);color:#fff9e9;border:0;border-radius:7px;font-weight:700;min-height:46px}.reader-body .source-link{color:#526653;text-decoration:underline}
+#workbook[data-view=study] #workbook-content{padding:22px}.study-sheet .study-heading{margin:-22px -22px 18px;padding:25px 23px 23px}.study-heading .folio-label,.record-header .folio-label{color:#f0d4a6}
+.study-progress{display:flex;gap:5px;width:112px;margin:24px 0 12px}.study-progress i{height:3px;flex:1;background:#5d7477}.study-progress .on{background:#e5bd7b}
+.study-cloth{padding:19px;border:1px solid #bb9b6b;border-radius:3px;background:repeating-linear-gradient(0deg,#d8c29c 0 2px,#e1ccaa 2px 5px);box-shadow:inset 0 0 0 5px #ecddc1;margin:12px 0 19px}
+.study-cloth .crossings,.editable-row{max-width:none}.study-cloth .crossings{gap:2px;margin:2px 0}.study-cloth .crossings i{height:36px}
+.crossings .warp-up,.editable-row .warp-up{background-image:repeating-linear-gradient(90deg,transparent 0 3px,#fff2 3px 4px)}.crossings .weft-up,.editable-row .weft-up{background-image:repeating-linear-gradient(0deg,transparent 0 3px,#49351728 3px 4px)}
+.editable-row{border:1px dashed #957d58;border-radius:4px;padding:6px;gap:5px}.editable-row i{border-radius:2px}
+#workbook[data-view=study] .study-evidence{margin-top:25px}.study-sheet .fine{color:#6e7065;font-size:12px}
+.record-header{background:linear-gradient(108deg,#123944,#295561);padding:25px 23px 18px}.record-header p{font-size:13px;color:#e0e2ce}.learning-summary{padding-bottom:18px}
+.score-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:16px 0}.score-strip div{border:1px solid var(--hair);border-top:3px solid #426773;border-radius:3px;background:#f2ecde;padding:9px}.score-strip div:nth-child(2){border-top-color:#a75e3e}.score-strip small,.score-strip span{display:block;font-size:11px;color:#565e56}.score-strip b{font:36px Georgia,serif;color:var(--indigo)}
+.learning-summary :is(th,td){color:#435853;padding:9px 3px;font-size:12px;border-color:var(--hair)}.learning-summary thead th{font-size:10px}.achieved,.practice{display:inline-block;padding:1px 6px;border-radius:4px;background:#dce8db;color:#32574b}.practice{background:#f2ddc9;color:#844b2c}
+.learning-summary .text-button{margin:8px 12px 0 0;color:#425e61}#workbook[data-view=journal] #workbook-content>:not(.learning-summary,.record-header){margin-left:22px;margin-right:22px}
+.reader-body .reader-intro{font-size:14px;line-height:1.65;color:#485954;margin:8px 0 2px}
+.reader-scope{margin:6px 0}.reader-scope summary{min-height:32px;font-size:12px;color:#526653}.reader-scope p{font-size:13px}
+.scene-first:has(.craft-track) .camera-tools{bottom:201px}
+.study-sheet .study-cloth .crossings i{height:clamp(36px,6dvh,55px)}
